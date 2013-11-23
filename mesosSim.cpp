@@ -22,7 +22,7 @@ struct Msg{
 	unsigned int from;
 	unsigned int to;
 	unsigned int value;
-	unsigned int value2;
+	string msg;
 };
 
 class Event{
@@ -37,7 +37,7 @@ class Event{
 	public:
 		Event(){};
 		// TODO: Specify event types
-		enum EvtType{job_request, start_job, finish_job};
+		enum EvtType{register_framework, unregister_framework, send_offer, accept_offer, reject_offer, start_task, finish_task, finish_job};
 		Event(EvtType type, double etime, int id, struct Msg message):_type(type),_etime(etime),_id(id),_message(message){}
 		EvtType get_type(){return _type;}
 		double get_time(){return _etime;}
@@ -58,30 +58,45 @@ struct Resources{
 	double disk;
 };
 
-struct JobRequest{
-	unsigned int job_id;
-	Resources requested_resources;
-	double default_job_time;
+struct Task{
+	unsigned int task_id;
+	Resources used_resources;
+	double task_time;
 };
 
 struct Job{
-	unsigned int job_id;
-	Resources used_resources;
-	double job_time;
+	unsigned int id;
+	vector<Task> tasks;
 };
 
 struct Slave{
 	unsigned int id;
 	Resources resources;
 	int alive;
-	vector<Job> curr_jobs;
+	vector<Task> curr_tasks;
 	Resources free_resources;
+};
+
+struct Framework{
+	unsigned int id;
+	vector<Job> job_list;
 };
 
 struct Master{
 	Resources total_resources;
 	Resources total_free_resources;	
+	vector<Framework> frameworks;
 };
+
+struct Offer{
+	vector<Slave> free_slave_list;
+};
+
+struct Offer_Acceptance{
+	vector< vector<Task> > task_assignments;
+};
+
+
 
 struct Slave *allSlaves;
 struct Master master;
@@ -93,7 +108,6 @@ unordered_map<unsigned int, int> map;
 
 // Functions handling events
 void init(struct Slave *n);	// ok
-void job_request(struct JobRequests jr);
 
 int main(int argc, char *argv[]){
 
@@ -137,7 +151,7 @@ int main(int argc, char *argv[]){
 		if(n->alive==0){
 			//TODO: What to do about down slaves?	
 		}
-		else if(evt.get_type()==Event::job_request){
+		else if(evt.get_type()==Event::register_framework){
 		}
 
 	}
@@ -158,9 +172,3 @@ void init(struct Slave *n){
 	n->free_resources = rsrc;
 }
 
-void job_request(struct JobRequest jr){
-	double cpu_slowdown = 1.0 / min(master.total_free_resources.cpus/jr.requested_resources.cpus, 1);
-	double mem_slowdown = 1.0 / min(master.total_free_resources.mem/jr.requested_resources.mem, 1);
-	double disk_slowdown = 1.0 / min(master.total_free_resources.disk/jr.requested_resources.disk, 1);
-	double expected_time = jr.default_job_time * cpu_slowdown * mem_slowdown * disk_slowdown;
-}
