@@ -108,6 +108,14 @@ unordered_map<unsigned int, int> map;
 
 // Functions handling events
 void init(struct Slave *n);	// ok
+void register_framework(Event e);
+void unregister_framework(Event e);
+void send_offer(Event e);
+void accept_offer(Event e);
+void reject_offer(Event e);
+void start_task(Event e);
+void finish_task(Event e);
+void finish_job(Event e);
 
 int main(int argc, char *argv[]){
 
@@ -170,5 +178,37 @@ void init(struct Slave *n){
 	Resources rsrc = {4.0, 3000000000.0, 500000000000.0 };
 	n->resources = rsrc;
 	n->free_resources = rsrc;
+}
+
+void register_framework(Event e){
+
+}
+
+void unregister_framework(Event e){
+
+}
+
+void send_offer(Event e){
+
+}
+
+void accept_offer(Event e){
+
+}
+
+void reject_offer(Event e){
+
+}
+
+void start_task(Event e){
+
+}
+
+void finish_task(Event e){
+
+}
+
+void finish_job(Event e){
+
 }
 
