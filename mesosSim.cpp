@@ -257,6 +257,7 @@ void finished_task(Event e){
 	Framework* f = &allFrameworks[f_id];
 	for(int i = 0; i < f->task_lists.size(); i++) {
 		if(f->task_lists[i][0].task_id == t_id){
+			assert(f->task_list[i][0].being_run);
 			f->task_lists[i].pop_front();
 			break;
 		}
