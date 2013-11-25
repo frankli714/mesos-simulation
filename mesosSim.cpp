@@ -18,12 +18,15 @@ using namespace std::tr1;
 
 double Clock;
 
-struct Msg{
-	unsigned int from;
+unsigned int global_event_id = 0;
+
+typedef struct{
 	unsigned int to;
-	unsigned int value;
-	string msg;
-};
+	unsigned int from;
+	unsigned int val;
+} Msg;
+
+Msg NULL_MSG;
 
 class Event{
 	
@@ -37,91 +40,76 @@ class Event{
 	public:
 		Event(){};
 		// TODO: Specify event types
-		enum EvtType{register_framework, unregister_framework, send_offer, accept_offer, reject_offer, start_task, finish_task, finish_job};
-		Event(EvtType type, double etime, int id, struct Msg message):_type(type),_etime(etime),_id(id),_message(message){}
+		enum EvtType{send_offer, accept_offer, reject_offer, finished_task};
+		Event(EvtType type, double etime, Msg msg):_type(type),_etime(etime), _msg(msg) {_id = global_event_id; global_event_id++;}
 		EvtType get_type(){return _type;}
 		double get_time(){return _etime;}
 		int get_id(){return _id;}
-		struct Msg get_message(){return _message;}
+		Msg get_msg(){return _msg;}
 	protected:
 		EvtType _type;
 		double _etime;
 		int _id;
-		struct Msg _message;
+		Msg _msg;
 };
 
 priority_queue<Event> FutureEventList;
 
-struct Resources{
+typedef struct{
 	double cpus;
 	double mem;
 	double disk;
-};
+} Resources;
 
-struct Task{
+typedef struct{
+	unsigned int slave_id;
 	unsigned int task_id;
 	Resources used_resources;
 	double task_time;
-};
+} Task;
 
-struct Job{
-	unsigned int id;
-	vector<Task> tasks;
-};
-
-struct Slave{
+class Slave{
+public:
 	unsigned int id;
 	Resources resources;
-	int alive;
 	vector<Task> curr_tasks;
 	Resources free_resources;
 };
 
-struct Framework{
+class Framework{
+public:
 	unsigned int id;
-	vector<Job> job_list;
+	vector< deque<Task> > task_lists;
+	Resources current_used;
 };
 
-struct Master{
-	Resources total_resources;
-	Resources total_free_resources;	
+class Master{
+public:
 	vector<Framework> frameworks;
 };
 
-struct Offer{
-	vector<Slave> free_slave_list;
-};
-
-struct Offer_Acceptance{
-	vector< vector<Task> > task_assignments;
-};
-
-
-
-struct Slave *allSlaves;
-struct Master master;
+Slave *allSlaves;
+Master master;
+Framework *allFrameworks;
 
 int num_slaves = 2;
+int num_frameworks = 1;
 int max_slave_id = 0;
-set<unsigned int> idlist,idlist_alive;
 unordered_map<unsigned int, int> map;
 
 // Functions handling events
-void init(struct Slave *n);	// ok
-void register_framework(Event e);
-void unregister_framework(Event e);
+void init(Slave *n);	// ok
 void send_offer(Event e);
 void accept_offer(Event e);
 void reject_offer(Event e);
-void start_task(Event e);
-void finish_task(Event e);
-void finish_job(Event e);
+void finished_task(Event e);
 
 int main(int argc, char *argv[]){
 
 	Clock = 0;
 
-	allSlaves = new struct Slave[num_slaves];
+	allSlaves = new Slave[num_slaves];
+	allFrameworks = new Framework[num_frameworks];
 
 	// lets initialize slave state and the event queue 
 	double t_cpus = 0.0, t_mem = 0.0, t_disk = 0.0;
@@ -135,31 +123,27 @@ int main(int argc, char *argv[]){
 	}
 	
 	Resources master_rsrc = {t_cpus, t_mem, t_disk};
-	master.total_resources = master_rsrc;
-	master.total_free_resources = master_rsrc;
 
-	cout << master.total_free_resources.cpus << " : "
-		<< master.total_free_resources.mem << " : "
-		<< master.total_free_resources.disk << endl;
-
-	struct Msg null_message;
         //cout << FutureEventList.empty() << endl;
 	while(!FutureEventList.empty()){
 		Event evt=FutureEventList.top();
 		FutureEventList.pop();
 		Clock=evt.get_time();
-		struct Slave * n;
+		Slave * n;
 		n=&allSlaves[map[evt.get_id()]];
 		if(evt.get_id()!=n->id){
 			cout << evt.get_id() <<  " " << n->id  << endl;
-			struct Msg message=evt.get_message();
-			cout << message.from << "  " << message.to << endl;
 		}
+		
 		assert(evt.get_id()==n->id);
-		if(n->alive==0){
-			//TODO: What to do about down slaves?	
-		}
-		else if(evt.get_type()==Event::register_framework){
+		if(evt.get_type()==Event::send_offer){
+			send_offer(evt);
+		}else if(evt.get_type()==Event::accept_offer){
+			accept_offer(evt);
+		}else if(evt.get_type()==Event::reject_offer){
+			reject_offer(evt);
+		}else if(evt.get_type()==Event::finished_task){
+			finished_task(evt);
 		}
 
 	}
@@ -171,44 +155,98 @@ int main(int argc, char *argv[]){
 	return 0;
 }
 
-void init(struct Slave *n){
+void init(Slave *n){
 	n->id = max_slave_id;
 	max_slave_id++;
-	n->alive = 1;
 	Resources rsrc = {4.0, 3000000000.0, 500000000000.0 };
 	n->resources = rsrc;
 	n->free_resources = rsrc;
 }
 
-void register_framework(Event e){
+/*bool free_slave(Slave s) {
+	if(s.cpus != 0 || s.mem != 0 || s.disk != 0) {
+		return true;
+	}
+	return false;
+}*/
 
+bool task_on_slave(Slave s, Resources r){
+	if(s.free_resources.cpus < r.cpus && s.free_resources.mem < r.mem && s.free_resources.disk < r.disk)
+		return true;
+	return false;
 }
 
-void unregister_framework(Event e){
-
+void use_resources(Slave* s, Resources r) {
+	s->free_resources.cpus -= r.cpus;
+	s->free_resources.mem -= r.mem;
+	s->free_resources.disk -= r.disk;
 }
+
+void release_resources(Slave* s, Resources r) {
+	s->free_resources.cpus += r.cpus;
+	s->free_resources.mem += r.mem;
+	s->free_resources.disk += r.disk;
+}
+
+int curr_rr_offer = 0;
+vector<Task> curr_schedules;
 
 void send_offer(Event e){
+	Framework f = allFrameworks[curr_rr_offer];
+	for(int i = 0; i < f.task_lists.size(); i++) {
+		for(int j = 0; j < num_slaves; j++) {
+			if(task_on_slave(allSlaves[j], f.task_lists[i][0].used_resources)){
+				Task todo_task = f.task_lists[i][0];
+				todo_task.slave_id = allSlaves[j].id;
+				curr_schedules.push_back(todo_task);
+				use_resources(&allSlaves[j], todo_task.used_resources);
+				f.task_lists[i].pop_front();
+			}
+		}
+	}
+	if(curr_schedules.size() > 0) {
+		for(int i = 0; i < curr_schedules.size(); i++) {
+			Task task = curr_schedules[i];
+			release_resources(&allSlaves[map[task.slave_id]], task.used_resources);
 
+		}
+		Event evt(Event::accept_offer, e.get_time(), NULL_MSG);
+		FutureEventList.push(evt);
+	}else {
+		Event evt(Event::reject_offer, e.get_time(), NULL_MSG);
+	        FutureEventList.push(evt);
+	}
 }
 
 void accept_offer(Event e){
+	for(int i = 0; i < curr_schedules.size(); i++) {
+		Task task = curr_schedules[i];
+		Slave * s = &allSlaves[map[task.slave_id]];
+		use_resources(s, task.used_resources);
+		s->curr_tasks.push_back(task);
+		Event evt(Event::finished_task, e.get_time() + task.task_time, {task.slave_id, 0, task.task_id});
+		FutureEventList.push(evt);
 
+	}
+	curr_schedules.clear();
+	curr_rr_offer++;
 }
 
 void reject_offer(Event e){
-
+	assert(curr_schedules.size()==0);
+	curr_rr_offer++;
 }
 
-void start_task(Event e){
-
+void finished_task(Event e){
+	unsigned int s_id = e.get_msg().to;
+	unsigned int t_id = e.get_msg().val;
+	Slave * s = &allSlaves[map[s_id]];
+	int i = 0;
+	for(; i<s->curr_tasks.size(); i++){
+		if(s->curr_tasks[i].task_id == t_id) {
+			release_resources(s, s->curr_tasks[i].used_resources);
+			break;
+		}
+	}
+	s->curr_tasks.erase(s->curr_tasks.begin() + i);
 }
-
-void finish_task(Event e){
-
-}
-
-void finish_job(Event e){
-
-}
-
