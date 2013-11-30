@@ -93,7 +93,7 @@ Master master;
 Framework *allFrameworks;
 
 int num_slaves = 2;
-int num_frameworks = 1;
+int num_frameworks = 2;
 int max_slave_id = 0;
 unordered_map<unsigned int, int> map;
 
@@ -122,12 +122,58 @@ int main(int argc, char *argv[]){
 		t_mem += allSlaves[i].resources.mem;
 		t_disk += allSlaves[i].resources.disk;
 	}
-	
+
+	unsigned int assigned_t_id = 0;
+
+	srand(0);
+	for(int i = 0; i < num_frameworks; i++) {
+		Framework* f = &allFrameworks[i];
+		f->id = i;
+		Resources r;
+		r.cpus = 0;
+		r.mem = 0;
+		r.disk = 0;
+		f->current_used = r;
+		for(int j = 0; j < 2; j++) {
+			deque<Task> q;
+			for(int k = 0; k<2; k++) {
+				Task t;
+				t.task_id = assigned_t_id;
+				assigned_t_id++;
+				t.used_resources = {(double) (rand()%4), (double) (rand()%5), 0};
+				t.being_run = false;
+				t.task_time = 5;
+				q.push_back(t);
+			}
+			f->task_lists.push_back(q);
+		}
+
+	}
+
+	Event evt(Event::send_offer, 0, NULL_MSG);
+	FutureEventList.push(evt);
+
+	for(int j=0;j<num_slaves;j++){
+		cout << "Slave " << (&allSlaves[j])->id << ": " << (&allSlaves[j])->resources.cpus << " : " << (&allSlaves[j])->resources.mem << endl;
+	}
+
 	while(!FutureEventList.empty()){
+		cout << endl;
+
 		Event evt=FutureEventList.top();
 		FutureEventList.pop();
 		Clock=evt.get_time();
-		
+
+		cout << "Time is " << Clock << " Event=";
+		if(evt.get_type()==0){
+			cout << "send_offer" << endl;
+		}else if(evt.get_type()==1) {
+			cout << "accept_offer" << endl;
+		}else if(evt.get_type()==2) {
+			cout << "reject_offer" << endl;
+		}else{
+			cout << "finished_task" << endl;
+		}
 		if(evt.get_type()==Event::send_offer){
 			send_offer(evt);
 		}else if(evt.get_type()==Event::accept_offer){
@@ -137,7 +183,9 @@ int main(int argc, char *argv[]){
 		}else if(evt.get_type()==Event::finished_task){
 			finished_task(evt);
 		}
-
+		for(int j = 0; j < num_slaves; j++) {
+			cout << "Curr slave " << (&allSlaves[j])->id << " cpu: " << (&allSlaves[j])->free_resources.cpus << " mem: " << (&allSlaves[j])->free_resources.mem << endl;
+		}
 	}
 
 	return 0;
@@ -146,14 +194,16 @@ int main(int argc, char *argv[]){
 void init(Slave *n){
 	n->id = max_slave_id;
 	max_slave_id++;
-	Resources rsrc = {4.0, 3000000000.0, 500000000000.0 };
+//	Resources rsrc = {4.0, 3000000000.0, 500000000000.0 };
+	Resources rsrc = {4.0, 5, 1 };
 	n->resources = rsrc;
 	n->free_resources = rsrc;
 }
 
 bool task_on_slave(Slave s, Resources r){
-	if(s.free_resources.cpus < r.cpus && s.free_resources.mem < r.mem && s.free_resources.disk < r.disk)
+	if(s.free_resources.cpus >= r.cpus && s.free_resources.mem >= r.mem && s.free_resources.disk >= r.disk) {
 		return true;
+	}
 	return false;
 }
 
@@ -161,12 +211,15 @@ void use_resources(Slave* s, Resources r) {
 	s->free_resources.cpus -= r.cpus;
 	s->free_resources.mem -= r.mem;
 	s->free_resources.disk -= r.disk;
+	cout << "Using Slave " << s->id << ": " << s->free_resources.cpus << " " << s->free_resources.mem << endl;
 }
 
 void release_resources(Slave* s, Resources r) {
 	s->free_resources.cpus += r.cpus;
 	s->free_resources.mem += r.mem;
 	s->free_resources.disk += r.disk;
+	cout << "Freeing Slave " << s->id << ": " << s->free_resources.cpus << " " << s->free_resources.mem << endl;
+
 }
 
 int curr_rr_offer = 0;
@@ -175,17 +228,26 @@ unsigned int num_offers = 0;
 bool make_offers = true;
 
 void send_offer(Event e){
+	make_offers = true;
+	cout <<"send_offer function" << endl;
 	Framework* f = &allFrameworks[curr_rr_offer];
+	cout << "Framework " << curr_rr_offer << endl;
 	for(int i = 0; i < f->task_lists.size(); i++) {
-		if(f->task_lists[i].size() == 0 || f->task_lists[i][0].being_run)
+		if(f->task_lists[i].size() == 0 || f->task_lists[i][0].being_run){
+			cout << "No task to currently run in thread " << i << endl;
 			continue;
+		}
+		cout << "Task id=" << f->task_lists[i][0].task_id << " : cpu " << f->task_lists[i][0].used_resources.cpus << " mem " << f->task_lists[i][0].used_resources.mem << " being_run " << f->task_lists[i][0].being_run << endl;
 		for(int j = 0; j < num_slaves; j++) {
 			if(task_on_slave(allSlaves[j], f->task_lists[i][0].used_resources)){
+				cout << "Should schedule" << endl;
 				Task todo_task = f->task_lists[i][0];
 				todo_task.slave_id = allSlaves[j].id;
 				curr_schedules.push_back(todo_task);
 				use_resources(&allSlaves[j], todo_task.used_resources);
+				cout << "Slave scheduled: id=" << (&allSlaves[j])->id << " cpu: " << (&allSlaves[j])->free_resources.cpus << " mem: " << (&allSlaves[j])->free_resources.mem << endl;
 				f->task_lists[i][0].being_run = true;
+				break;
 			}
 		}
 	}
@@ -205,6 +267,7 @@ void send_offer(Event e){
 }
 
 void accept_offer(Event e){
+	cout << "accept_offer function" << endl;
 	for(int i = 0; i < curr_schedules.size(); i++) {
 		Task task = curr_schedules[i];
 		Slave * s = &allSlaves[map[task.slave_id]];
@@ -218,6 +281,7 @@ void accept_offer(Event e){
 	}
 	curr_schedules.clear();
 	curr_rr_offer++;
+	curr_rr_offer %= num_frameworks;
 	num_offers++;
 	if(num_offers < num_frameworks){
 		Event evt(Event::send_offer, e.get_time(), NULL_MSG);
@@ -229,8 +293,10 @@ void accept_offer(Event e){
 }
 
 void reject_offer(Event e){
+	cout << "reject_offer" << endl;
 	assert(curr_schedules.size()==0);
 	curr_rr_offer++;
+	curr_rr_offer %= num_frameworks;
 	num_offers++;
 	if(num_offers < num_frameworks){
 		Event evt(Event::send_offer, e.get_time(), NULL_MSG);
@@ -250,6 +316,7 @@ void finished_task(Event e){
 	for(; i<s->curr_tasks.size(); i++){
 		if(s->curr_tasks[i].task_id == t_id) {
 			release_resources(s, s->curr_tasks[i].used_resources);
+			cout << "finished_task " << s->curr_tasks[i].task_id << endl;
 			break;
 		}
 	}
@@ -263,8 +330,10 @@ void finished_task(Event e){
 		}
 	}
 
-
-	Event evt(Event::send_offer, e.get_time(), NULL_MSG);
-	FutureEventList.push(evt);
+	if(make_offers){	
+		Event evt(Event::send_offer, e.get_time()+0.0001, NULL_MSG);
+		FutureEventList.push(evt);
+		make_offers = false;
+	}
 
 }
