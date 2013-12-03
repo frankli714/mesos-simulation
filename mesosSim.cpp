@@ -7,12 +7,17 @@
 #include <math.h>
 #include <queue>
 #include <stack>
-#include <tr1/unordered_map>
 #include <climits>
 #include <algorithm>
 
-using namespace std;
+#ifdef _LIBCPP_VERSION
+#include <unordered_map>
+#else
+#include <tr1/unordered_map>
 using namespace std::tr1;
+#endif
+
+using namespace std;
 
 // i have decided to go for a priority queue based simulation; the caveat is that code cant be directly implemented;
 
@@ -23,11 +28,11 @@ double Clock;
 
 unsigned int global_event_id = 0;
 
-typedef struct{
+struct Msg {
 	unsigned int to;
 	unsigned int from;
 	unsigned int val;
-} Msg;
+};
 
 Msg NULL_MSG;
 
@@ -43,7 +48,7 @@ class Event{
 	public:
 		Event(){};
 		enum EvtType{offer, finished_task};
-		Event(EvtType type, double etime, Msg msg):_type(type),_etime(etime), _msg(msg) {_id = global_event_id; global_event_id++;}
+		Event(EvtType type, double etime, const Msg& msg):_type(type),_etime(etime), _msg(msg) {_id = global_event_id; global_event_id++;}
 		EvtType get_type(){return _type;}
 		double get_time(){return _etime;}
 		int get_id(){return _id;}
@@ -98,7 +103,7 @@ Framework *allFrameworks;
 int num_slaves = 2;
 int num_frameworks = 3;
 int max_slave_id = 0;
-unordered_map<unsigned int, int> map;
+unordered_map<unsigned int, int> slave_id_to_index;
 
 double total_cpus = 0.0, total_mem = 0.0, total_disk = 0.0;
 
@@ -117,7 +122,7 @@ int main(int argc, char *argv[]){
 	// lets initialize slave state and the event queue 
 	for(int i=0;i<num_slaves;i++){
 		init(&allSlaves[i]);
-		map[allSlaves[i].id]=i;
+		slave_id_to_index[allSlaves[i].id]=i;
 
 		total_cpus += allSlaves[i].resources.cpus;
 		total_mem += allSlaves[i].resources.mem;
@@ -141,7 +146,11 @@ int main(int argc, char *argv[]){
 				Task t;
 				t.task_id = assigned_t_id;
 				assigned_t_id++;
-				t.used_resources = {(double) (rand()%4), (double) (rand()%5), 0};
+
+				t.used_resources.cpus = static_cast<double>(rand()%4);
+				t.used_resources.mem = static_cast<double>(rand()%5);
+				t.used_resources.disk = 0;
+        
 				t.being_run = false;
 				t.task_time = (double) (rand()%10);
 				q.push_back(t);
@@ -298,12 +307,13 @@ void process_offer(Event e){
 		}*/
 		for(int i = 0; i < curr_schedules.size(); i++) {
 			Task task = curr_schedules[i];
-			Slave * s = &allSlaves[map[task.slave_id]];
+			Slave * s = &allSlaves[slave_id_to_index[task.slave_id]];
 	
 			//Only needed if making offer to everyone, so everyone sees same view
 			//use_resources(s, task.used_resources);
 			s->curr_tasks.push_back(task);
-			Event evt(Event::finished_task, e.get_time() + task.task_time, {task.slave_id, curr_framework_offer, task.task_id});
+      Msg msg = {task.slave_id, curr_framework_offer, task.task_id};
+			Event evt(Event::finished_task, e.get_time() + task.task_time, msg);
 			FutureEventList.push(evt);
 
 		}
@@ -323,7 +333,7 @@ void finished_task(Event e){
 	unsigned int s_id = e.get_msg().to;
 	unsigned int t_id = e.get_msg().val;
 	unsigned int f_id = e.get_msg().from;
-	Slave * s = &allSlaves[map[s_id]];
+	Slave * s = &allSlaves[slave_id_to_index[s_id]];
 	Framework* f = &allFrameworks[f_id];
 
 	int i = 0;
