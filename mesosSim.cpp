@@ -17,6 +17,9 @@
 using namespace std::tr1;
 #endif
 
+#include "shared.hpp"
+#include "auction.hpp"
+
 using namespace std;
 
 // i have decided to go for a priority queue based simulation; the caveat is that code cant be directly implemented;
@@ -62,12 +65,6 @@ class Event{
 };
 
 priority_queue<Event> FutureEventList;
-
-typedef struct{
-	double cpus;
-	double mem;
-	double disk;
-} Resources;
 
 typedef struct{
 	unsigned int slave_id;
@@ -358,7 +355,7 @@ void release_resources(Slave* s, Resources r) {
 
 }
 
-int curr_framework_offer = 0;
+unsigned int curr_framework_offer = 0;
 unsigned int num_offers = 0;
 vector<unsigned int> offered_framework_ids;
 
