@@ -326,7 +326,7 @@ int main(int argc, char *argv[]){
 		FutureEventList.pop();
 		Clock=evt.get_time();
 		
-		if (Clock > 2506180437563)
+		if (Clock > 2506181000000)
 			break;
 
 		if(evt.get_type()==Event::offer){
