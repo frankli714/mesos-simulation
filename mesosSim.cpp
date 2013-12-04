@@ -10,12 +10,12 @@
 #include <climits>
 #include <algorithm>
 
-#ifdef _LIBCPP_VERSION
+//#ifdef _LIBCPP_VERSION
 #include <unordered_map>
-#else
+/*#else
 #include <tr1/unordered_map>
 using namespace std::tr1;
-#endif
+#endif*/
 
 #include "shared.hpp"
 #include "auction.hpp"
@@ -26,6 +26,7 @@ using namespace std;
 
 //#define RR
 #define DRF
+#define DEBUG 0
 
 double Clock;
 
@@ -106,6 +107,7 @@ int max_slave_id = 0;
 int max_job_id = 0;
 unordered_map<unsigned int, int> slave_id_to_index;
 unordered_map<unsigned int, pair<int, unsigned int> > jobs_to_tasks;
+unordered_map<unsigned int, bool> offered_framework_ids;
 
 double total_cpus = 0.0, total_mem = 0.0, total_disk = 0.0;
 double total_cpus_used = 0.0, total_mem_used = 0.0, total_disk_used = 0.0;
@@ -168,7 +170,7 @@ vector<double> split(string str, char delim) {
 	return split_v;
 }
 
-bool intersect(double s1, double s2, double e1, double e2){
+bool intersect(double s1, double e1, double s2, double e2){
 	if (s1 > e2 || s2 > e1) {
 		return false;
 	}
@@ -180,22 +182,28 @@ void trace_workload(){
 		Framework* f = &allFrameworks[i]; 
 		f->id = i;
 		f->current_used = {0, 0, 0};
+		offered_framework_ids[i] = false;
 	}
 
 	unsigned int assigned_t_id = 0;
 	string line;
-	ifstream trace ("example.txt");
+	ifstream trace ("task_times_converted.txt");
 	if(trace.is_open()){
+		cout << " IN " << endl;
 		int job_vector_index = 0;
-		unsigned int last_j_id = 0;
+		double last_j_id = 0;
 		while( getline(trace, line)) {
 			// 0: job_id 1: task_index 2: start_time 3: end_time 4: framework_id 5: scheduling_class
 			// 6: priority 7: cpu 8: ram 9: disk
 			vector<double> split_v = split(line, ' ');
+			if(split_v[0] != last_j_id) {
+				max_job_id++;
+			}
+
 			Task t;
 			t.slave_id = 0; //Set simply as default
 			t.task_id = assigned_t_id;
-			t.job_id = split_v[0];
+			t.job_id = max_job_id;
 			assigned_t_id++;
 
 			t.used_resources = { split_v[7], split_v[8], split_v[9]};
@@ -203,7 +211,7 @@ void trace_workload(){
 			t.task_time = split_v[3] - split_v[2];
 			t.start_time = split_v[2];
 			if (t.task_time <= 0) {
-				cout << "ERROR IN PROCESSING TASK TIME!" << endl;
+				cout << "ERROR IN PROCESSING TASK TIME! " << t.job_id << " " << t.start_time << " " << split_v[3] << endl;
 				exit(EXIT_FAILURE);
 			}
 			
@@ -230,6 +238,7 @@ void trace_workload(){
 
 					}
 					if( !has_intersection) {
+						if(DEBUG) cout << "No intersections! " << line << endl;
 						int j;
 						for( j = 0; j < f->task_lists[i].size(); j++){
 							if (t.start_time + t.task_time < f->task_lists[i][j].start_time){
@@ -273,16 +282,37 @@ int main(int argc, char *argv[]){
 
 	//rand_workload();
 	trace_workload();
+	cout << "Done generating workload" << endl;
+
+	//Spot check
+	int sum_size = 0;
+	for(int i = 0; i < num_frameworks; i++) {
+		for (int j = 0; j < allFrameworks[i].task_lists.size(); j++){
+			if ( allFrameworks[i].task_lists[j].size() > 1 ){
+				for(int k = 1; k < allFrameworks[i].task_lists[j].size(); k++){
+					Task t1 = allFrameworks[i].task_lists[j][k-1];
+					Task t2 = allFrameworks[i].task_lists[j][k];
+					if (t1.start_time + t1.task_time > t2.start_time) {
+						cout << "ERROR: Spot check fail" << endl;
+						exit(EXIT_FAILURE);
+					}
+				}
+			}
+
+			sum_size += allFrameworks[i].task_lists[j].size();
+		}
+	}
+	cout << "DONE " << sum_size << endl;
 
 	Event evt(Event::offer, 5637000000, NULL_MSG);
 	FutureEventList.push(evt);
 
 	for(int j=0;j<num_slaves;j++){
-		cout << "Slave " << (&allSlaves[j])->id << " has total cpus: " << (&allSlaves[j])->resources.cpus << " mem: " << (&allSlaves[j])->resources.mem << endl;
+		if(DEBUG) cout << "Slave " << (&allSlaves[j])->id << " has total cpus: " << (&allSlaves[j])->resources.cpus << " mem: " << (&allSlaves[j])->resources.mem << endl;
 	}
 
 	while(!FutureEventList.empty()){
-		cout << endl;
+		if(DEBUG) cout << endl;
 
 		Event evt=FutureEventList.top();
 		FutureEventList.pop();
@@ -293,8 +323,8 @@ int main(int argc, char *argv[]){
 		}else if(evt.get_type()==Event::finished_task){
 			finished_task(evt);
 		}
-		for(int j = 0; j < num_slaves; j++) {
-			cout << "Curr slave " << (&allSlaves[j])->id << " cpu: " << (&allSlaves[j])->free_resources.cpus << " mem: " << (&allSlaves[j])->free_resources.mem << endl;
+/*		for(int j = 0; j < num_slaves; j++) {
+			if(DEBUG) cout << "Curr slave " << (&allSlaves[j])->id << " cpu: " << (&allSlaves[j])->free_resources.cpus << " mem: " << (&allSlaves[j])->free_resources.mem << endl;
 		}
 		for(int j = 0; j < num_frameworks; j++) {
 			Framework f = allFrameworks[j];
@@ -302,8 +332,8 @@ int main(int argc, char *argv[]){
 			double mem_share = f.current_used.mem / total_mem;
 			double disk_share = f.current_used.disk / total_disk;
 			double dominant_share = max(cpu_share, max(mem_share, disk_share));
-			cout << "Framework " << (&allFrameworks[j])->id << " is using cpus: " << (&allFrameworks[j])->current_used.cpus << " mem: " << (&allFrameworks[j])->current_used.mem << " Dominant share is " << dominant_share << endl;
-		}
+			if(DEBUG) cout << "Framework " << (&allFrameworks[j])->id << " is using cpus: " << (&allFrameworks[j])->current_used.cpus << " mem: " << (&allFrameworks[j])->current_used.mem << " Dominant share is " << dominant_share << endl;
+		}*/
 	}
 
 	//METRICS: Completion time
@@ -312,7 +342,7 @@ int main(int argc, char *argv[]){
 		cout << it->second.second << endl;
 		//sum += it->second.second;
 	}
-	//cout << "Average job completition time is " << float(sum)/float(jobs_to_tasks.size()) << endl;
+	//if(DEBUG) cout << "Average job completition time is " << float(sum)/float(jobs_to_tasks.size()) << endl;
 
 	return 0; 
 }
@@ -326,8 +356,8 @@ void init(Slave *n){
 	n->free_resources = rsrc;
 }
 
-bool task_on_slave(Slave s, Resources r){
-	if(s.free_resources.cpus >= r.cpus && s.free_resources.mem >= r.mem && s.free_resources.disk >= r.disk) {
+bool task_on_slave(Slave* s, Resources r){
+	if(s->free_resources.cpus >= r.cpus && s->free_resources.mem >= r.mem && s->free_resources.disk >= r.disk) {
 		return true;
 	}
 	return false;
@@ -340,7 +370,7 @@ void use_resources(Slave* s, Resources r) {
 	total_cpus_used -= r.cpus;
 	total_mem_used -= r.mem;
 	total_disk_used -= r.disk;
-	cout << "Using Slave " << s->id << ": " << s->free_resources.cpus << " " << s->free_resources.mem << endl;
+	if(DEBUG) cout << "Using Slave " << s->id << ": " << s->free_resources.cpus << " " << s->free_resources.mem << endl;
 }
 
 void release_resources(Slave* s, Resources r) {
@@ -351,13 +381,12 @@ void release_resources(Slave* s, Resources r) {
 	total_mem_used += r.mem;
 	total_disk_used += r.disk;
 
-	cout << "Freeing Slave " << s->id << ": " << s->free_resources.cpus << " " << s->free_resources.mem << endl;
+	if(DEBUG) cout << "Freeing Slave " << s->id << ": " << s->free_resources.cpus << " " << s->free_resources.mem << endl;
 
 }
 
 unsigned int curr_framework_offer = 0;
 unsigned int num_offers = 0;
-vector<unsigned int> offered_framework_ids;
 
 void round_robin() {
 	curr_framework_offer++;
@@ -368,26 +397,26 @@ void drf() {
 	double max_share = 1.0;
 	double next_id  = 0;
 	for(int i = 0; i<num_frameworks; i++) {
-		if(find(offered_framework_ids.begin(), offered_framework_ids.end(), i) == offered_framework_ids.end()){
-			Framework f = allFrameworks[i];
-			double cpu_share = f.current_used.cpus / total_cpus;
-			double mem_share = f.current_used.mem / total_mem;
-			double disk_share = f.current_used.disk / total_disk;
+		if(!offered_framework_ids[i]){
+			Framework* f = &allFrameworks[i];
+			double cpu_share = f->current_used.cpus / total_cpus;
+			double mem_share = f->current_used.mem / total_mem;
+			double disk_share = f->current_used.disk / total_disk;
 			double dominant_share = max(cpu_share, max(mem_share, disk_share));
-			cout << "DRF computes dominant share for framework " << i << " is " << dominant_share << endl;
+			if(DEBUG) cout << "DRF computes dominant share for framework " << i << " is " << dominant_share << endl;
 			if (dominant_share < max_share) {
 				max_share = dominant_share;
 				next_id = i;
 			}
 		}
 	}
-	cout << "DRF is offering next to framework " << next_id << endl;
+	if(DEBUG) cout << "DRF is offering next to framework " << next_id << endl;
 	curr_framework_offer = next_id;
 	
 }
 
 void process_offer(Event e){
-	cout <<"Time is " << Clock << " process_offer function" << endl;
+	if(DEBUG) cout <<"Time is " << Clock << " process_offer function" << endl;
 
 #ifdef RR
 	round_robin();
@@ -397,25 +426,25 @@ void process_offer(Event e){
 #endif
 
 	Framework* f = &allFrameworks[curr_framework_offer];
-	cout << "Framework " << curr_framework_offer << endl;
-	offered_framework_ids.push_back(curr_framework_offer);
+	if(DEBUG) cout << "Framework " << curr_framework_offer << endl;
+	offered_framework_ids[curr_framework_offer] = true;
 
 	vector<Task> curr_schedules;
 
 	for(int i = 0; i < f->task_lists.size(); i++) {
 		if(f->task_lists[i].size() == 0 || f->task_lists[i][0].being_run || f->task_lists[i][0].start_time > e.get_time()){
-			cout << "No task to currently run in thread " << i << endl;
+			if(DEBUG) cout << "No task to currently run in thread " << i << endl;
 			continue;
 		}
-		cout << "Task id=" << f->task_lists[i][0].task_id << " : cpu " << f->task_lists[i][0].used_resources.cpus << " mem " << f->task_lists[i][0].used_resources.mem << " being_run " << f->task_lists[i][0].being_run << endl;
+		if(DEBUG) cout << "Task id=" << f->task_lists[i][0].task_id << " : cpu " << f->task_lists[i][0].used_resources.cpus << " mem " << f->task_lists[i][0].used_resources.mem << " being_run " << f->task_lists[i][0].being_run << endl;
 		for(int j = 0; j < num_slaves; j++) {
-			if(task_on_slave(allSlaves[j], f->task_lists[i][0].used_resources)){
-				cout << "Should schedule" << endl;
+			if(task_on_slave(&allSlaves[j], f->task_lists[i][0].used_resources)){
+				if(DEBUG) cout << "Should schedule" << endl;
 				Task todo_task = f->task_lists[i][0];
 				todo_task.slave_id = allSlaves[j].id;
 				curr_schedules.push_back(todo_task);
 				use_resources(&allSlaves[j], todo_task.used_resources);
-				cout << "Slave scheduled: id=" << (&allSlaves[j])->id << " cpu: " << (&allSlaves[j])->free_resources.cpus << " mem: " << (&allSlaves[j])->free_resources.mem << endl;
+				if(DEBUG) cout << "Slave scheduled: id=" << (&allSlaves[j])->id << " cpu: " << (&allSlaves[j])->free_resources.cpus << " mem: " << (&allSlaves[j])->free_resources.mem << endl;
 				f->task_lists[i][0].being_run = true;
 				f->current_used.cpus += todo_task.used_resources.cpus;
 				f->current_used.mem += todo_task.used_resources.mem;
@@ -451,10 +480,13 @@ void process_offer(Event e){
 		Event evt(Event::offer, e.get_time(), NULL_MSG);
 		FutureEventList.push(evt);
 	}else {
-		offered_framework_ids.clear();
+		for(int i = 0; i < num_frameworks; i++) {
+			offered_framework_ids[i] = false;
+		}
 		Event evt(Event::offer, e.get_time()+1000000, NULL_MSG);
 		FutureEventList.push(evt);
 
+		cout << "Offers made at time " << e.get_time() << endl;
 		//Log utilization
 		cout << float(total_cpus_used)/float(total_cpus) << " " << float(total_mem_used)/float(total_mem) << " " << float(total_disk_used)/float(total_disk) << endl;
 
@@ -474,7 +506,7 @@ void finished_task(Event e){
 	int i = 0;
 	for(; i<s->curr_tasks.size(); i++){
 		if(s->curr_tasks[i].task_id == t_id) {
-			cout << "Time is " << Clock << " finished_task " << s->curr_tasks[i].task_id << endl;
+			if(DEBUG) cout << "Time is " << Clock << " finished_task " << s->curr_tasks[i].task_id << endl;
 			release_resources(s, s->curr_tasks[i].used_resources);
 			f->current_used.cpus -= s->curr_tasks[i].used_resources.cpus;
 			f->current_used.mem -= s->curr_tasks[i].used_resources.mem;
