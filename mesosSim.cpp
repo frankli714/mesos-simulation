@@ -32,6 +32,7 @@ struct Msg {
 	unsigned int to;
 	unsigned int from;
 	unsigned int val;
+	unsigned int val2;
 };
 
 Msg NULL_MSG;
@@ -71,8 +72,10 @@ typedef struct{
 typedef struct{
 	unsigned int slave_id;
 	unsigned int task_id;
+	unsigned int job_id;
 	Resources used_resources;
 	double task_time;
+	double start_time;
 	bool being_run;
 } Task;
 
@@ -100,10 +103,12 @@ Slave *allSlaves;
 Master master;
 Framework *allFrameworks;
 
-int num_slaves = 2;
-int num_frameworks = 3;
+int num_slaves = 300;
+int num_frameworks = 397;
 int max_slave_id = 0;
+int max_job_id = 0;
 unordered_map<unsigned int, int> slave_id_to_index;
+unordered_map<unsigned int, pair<int, unsigned int> > jobs_to_tasks;
 
 double total_cpus = 0.0, total_mem = 0.0, total_disk = 0.0;
 
@@ -112,23 +117,7 @@ void init(Slave *n);	// ok
 void process_offer(Event e);
 void finished_task(Event e);
 
-int main(int argc, char *argv[]){
-
-	Clock = 0;
-
-	allSlaves = new Slave[num_slaves];
-	allFrameworks = new Framework[num_frameworks];
-
-	// lets initialize slave state and the event queue 
-	for(int i=0;i<num_slaves;i++){
-		init(&allSlaves[i]);
-		slave_id_to_index[allSlaves[i].id]=i;
-
-		total_cpus += allSlaves[i].resources.cpus;
-		total_mem += allSlaves[i].resources.mem;
-		total_disk += allSlaves[i].resources.disk;
-	}
-
+void rand_workload(){
 	unsigned int assigned_t_id = 0;
 	// This simply generates random tasks for debugging purposes
 	srand(0);
@@ -159,6 +148,133 @@ int main(int argc, char *argv[]){
 		}
 
 	}
+
+
+}
+
+vector<double> split(string str, char delim) {
+	vector<double> split_v;
+	int i = 0;
+	string buf = "";
+	while (i < str.length()){
+		if (str[i] != delim)
+			buf += str[i];
+		else {
+			split_v.push_back(atof(buf.c_str()));
+			buf = "";
+		}
+		i++;
+	}
+	if (!buf.empty())
+		split_v.push_back(atof(buf.c_str()));
+	return split_v;
+}
+
+bool intersect(double s1, double s2, double e1, double e2){
+	if (s1 > e2 || s2 > e1) {
+		return false;
+	}
+	return true;
+}
+
+void trace_workload(){
+	for(int i = 0; i< num_frameworks; i++){
+		Framework* f = &allFrameworks[i]; 
+		f->id = i;
+		f->current_used = {0, 0, 0};
+	}
+
+	unsigned int assigned_t_id = 0;
+	string line;
+	ifstream trace ("example.txt");
+	if(trace.is_open()){
+		int job_vector_index = 0;
+		unsigned int last_j_id = 0;
+		while( getline(trace, line)) {
+			// 0: job_id 1: task_index 2: start_time 3: end_time 4: framework_id 5: scheduling_class
+			// 6: priority 7: cpu 8: ram 9: disk
+			vector<double> split_v = split(line, ' ');
+			Task t;
+			t.slave_id = 0; //Set simply as default
+			t.task_id = assigned_t_id;
+			t.job_id = split_v[0];
+			assigned_t_id++;
+
+			t.used_resources = { split_v[7], split_v[8], split_v[9]};
+			t.being_run = false;
+			t.task_time = split_v[3] - split_v[2];
+			t.start_time = split_v[2];
+			if (t.task_time <= 0) {
+				cout << "ERROR IN PROCESSING TASK TIME!" << endl;
+				exit(EXIT_FAILURE);
+			}
+			
+			Framework* f = &allFrameworks[ (int) split_v[4] ];
+			if ( split_v[0] != last_j_id) {
+				last_j_id = split_v[0];
+				job_vector_index = f->task_lists.size();
+				deque<Task> q;
+				q.push_back(t);
+				f->task_lists.push_back(q);
+				jobs_to_tasks[t.job_id] = make_pair(1, t.start_time);
+			}else {
+				jobs_to_tasks[t.job_id].first += 1;
+				if (t.start_time < jobs_to_tasks[t.job_id].second)
+					jobs_to_tasks[t.job_id].second = t.start_time;
+				int i;
+				for(i = job_vector_index; i < f->task_lists.size(); i++) {
+					bool has_intersection = false;
+					for( int j = 0; j < f->task_lists[i].size(); j++) {
+						Task cmp_task = f->task_lists[i][j];
+						has_intersection = intersect(t.start_time, t.start_time + t.task_time, cmp_task.start_time, cmp_task.start_time + cmp_task.task_time);
+						if(has_intersection)
+							break;
+
+					}
+					if( !has_intersection) {
+						int j;
+						for( j = 0; j < f->task_lists[i].size(); j++){
+							if (t.start_time + t.task_time < f->task_lists[i][j].start_time){
+								f->task_lists[i].insert(f->task_lists[i].begin()+j, t);
+								break;
+							}
+						}
+						if(j == f->task_lists[i].size()){
+							f->task_lists[i].push_back(t);
+						}
+						break;
+					}
+				}
+				if(i == f->task_lists.size()) {
+					deque<Task> q;
+					q.push_back(t);
+					f->task_lists.push_back(q);
+				}	
+			}
+		}
+		trace.close();
+	}
+}
+
+int main(int argc, char *argv[]){
+
+	Clock = 0;
+
+	allSlaves = new Slave[num_slaves];
+	allFrameworks = new Framework[num_frameworks];
+
+	// lets initialize slave state and the event queue 
+	for(int i=0;i<num_slaves;i++){
+		init(&allSlaves[i]);
+		slave_id_to_index[allSlaves[i].id]=i;
+
+		total_cpus += allSlaves[i].resources.cpus;
+		total_mem += allSlaves[i].resources.mem;
+		total_disk += allSlaves[i].resources.disk;
+	}
+
+	//rand_workload();
+	trace_workload();
 
 	Event evt(Event::offer, 0, NULL_MSG);
 	FutureEventList.push(evt);
@@ -192,14 +308,21 @@ int main(int argc, char *argv[]){
 		}
 	}
 
-	return 0;
+	//METRICS: Completion time
+	unsigned int sum = 0;
+	for( auto it = jobs_to_tasks.begin(); it != jobs_to_tasks.end(); ++it){
+		sum += it->second.second;
+	}
+	cout << "Average job completition time is " << float(sum)/float(jobs_to_tasks.size()) << endl;
+
+	return 0; 
 }
 
 void init(Slave *n){
 	n->id = max_slave_id;
 	max_slave_id++;
-//	Resources rsrc = {4.0, 3000000000.0, 500000000000.0 };
-	Resources rsrc = {4.0, 5, 1 };
+	Resources rsrc = {1, 1, 1 };
+//	Resources rsrc = {4.0, 5, 1 };
 	n->resources = rsrc;
 	n->free_resources = rsrc;
 }
@@ -276,7 +399,7 @@ void process_offer(Event e){
 	vector<Task> curr_schedules;
 
 	for(int i = 0; i < f->task_lists.size(); i++) {
-		if(f->task_lists[i].size() == 0 || f->task_lists[i][0].being_run){
+		if(f->task_lists[i].size() == 0 || f->task_lists[i][0].being_run || f->task_lists[i][0].start_time > e.get_time()){
 			cout << "No task to currently run in thread " << i << endl;
 			continue;
 		}
@@ -312,7 +435,7 @@ void process_offer(Event e){
 			//Only needed if making offer to everyone, so everyone sees same view
 			//use_resources(s, task.used_resources);
 			s->curr_tasks.push_back(task);
-      Msg msg = {task.slave_id, curr_framework_offer, task.task_id};
+			Msg msg = {task.slave_id, curr_framework_offer, task.task_id, task.job_id};
 			Event evt(Event::finished_task, e.get_time() + task.task_time, msg);
 			FutureEventList.push(evt);
 
@@ -333,6 +456,7 @@ void finished_task(Event e){
 	unsigned int s_id = e.get_msg().to;
 	unsigned int t_id = e.get_msg().val;
 	unsigned int f_id = e.get_msg().from;
+	unsigned int j_id = e.get_msg().val2;
 	Slave * s = &allSlaves[slave_id_to_index[s_id]];
 	Framework* f = &allFrameworks[f_id];
 
@@ -355,6 +479,11 @@ void finished_task(Event e){
 			f->task_lists[i].pop_front();
 			break;
 		}
+	}
+	jobs_to_tasks[j_id].first -= 1;
+	if(jobs_to_tasks[j_id].first==0){
+		unsigned int start = jobs_to_tasks[j_id].second;
+		jobs_to_tasks[j_id].second = e.get_time() - start;
 	}
 
 	if(make_offers){
