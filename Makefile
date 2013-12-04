@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -g -std=c++0x
+CXXFLAGS = -g -O4 -std=c++0x
 
 mesosSim : mesosSim.o auction.o
 	$(CXX) $(CXXFLAGS) $^ -o $@

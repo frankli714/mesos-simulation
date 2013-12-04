@@ -101,12 +101,14 @@ Slave *allSlaves;
 Master master;
 Framework *allFrameworks;
 
-int num_slaves = 300;
+int num_slaves = 10;
 int num_frameworks = 397;
 int max_slave_id = 0;
 int max_job_id = 0;
 unordered_map<unsigned int, int> slave_id_to_index;
 unordered_map<unsigned int, pair<int, unsigned int> > jobs_to_tasks;
+unordered_map<unsigned int, int > jobs_to_num_tasks;
+
 unordered_map<unsigned int, bool> offered_framework_ids;
 
 double total_cpus = 0.0, total_mem = 0.0, total_disk = 0.0;
@@ -206,6 +208,7 @@ void trace_workload(){
 			t.job_id = max_job_id;
 			assigned_t_id++;
 
+
 			t.used_resources = { split_v[7], split_v[8], split_v[9]};
 			t.being_run = false;
 			t.task_time = split_v[3] - split_v[2];
@@ -216,6 +219,8 @@ void trace_workload(){
 			}
 			
 			Framework* f = &allFrameworks[ (int) split_v[4] ];
+
+
 			if ( split_v[0] != last_j_id) {
 				last_j_id = split_v[0];
 				job_vector_index = f->task_lists.size();
@@ -223,8 +228,12 @@ void trace_workload(){
 				q.push_back(t);
 				f->task_lists.push_back(q);
 				jobs_to_tasks[t.job_id] = make_pair(1, t.start_time);
+				jobs_to_num_tasks[t.job_id] = 1;
+
 			}else {
 				jobs_to_tasks[t.job_id].first += 1;
+				jobs_to_num_tasks[t.job_id] += 1;
+
 				if (t.start_time < jobs_to_tasks[t.job_id].second)
 					jobs_to_tasks[t.job_id].second = t.start_time;
 				int i;
@@ -235,7 +244,6 @@ void trace_workload(){
 						has_intersection = intersect(t.start_time, t.start_time + t.task_time, cmp_task.start_time, cmp_task.start_time + cmp_task.task_time);
 						if(has_intersection)
 							break;
-
 					}
 					if( !has_intersection) {
 						if(DEBUG) cout << "No intersections! " << line << endl;
@@ -317,6 +325,9 @@ int main(int argc, char *argv[]){
 		Event evt=FutureEventList.top();
 		FutureEventList.pop();
 		Clock=evt.get_time();
+		
+		if (Clock > 2506180437563)
+			break;
 
 		if(evt.get_type()==Event::offer){
 			process_offer(evt);
@@ -338,8 +349,9 @@ int main(int argc, char *argv[]){
 
 	//METRICS: Completion time
 	unsigned int sum = 0;
+	cout << "#JOB COMPLETION TIMES" << endl;
 	for( auto it = jobs_to_tasks.begin(); it != jobs_to_tasks.end(); ++it){
-		cout << it->second.second << endl;
+		cout << jobs_to_num_tasks[it->first] << " " << it->second.second << endl;
 		//sum += it->second.second;
 	}
 	//if(DEBUG) cout << "Average job completition time is " << float(sum)/float(jobs_to_tasks.size()) << endl;
@@ -367,9 +379,9 @@ void use_resources(Slave* s, Resources r) {
 	s->free_resources.cpus -= r.cpus;
 	s->free_resources.mem -= r.mem;
 	s->free_resources.disk -= r.disk;
-	total_cpus_used -= r.cpus;
-	total_mem_used -= r.mem;
-	total_disk_used -= r.disk;
+	total_cpus_used += r.cpus;
+	total_mem_used += r.mem;
+	total_disk_used += r.disk;
 	if(DEBUG) cout << "Using Slave " << s->id << ": " << s->free_resources.cpus << " " << s->free_resources.mem << endl;
 }
 
@@ -377,9 +389,9 @@ void release_resources(Slave* s, Resources r) {
 	s->free_resources.cpus += r.cpus;
 	s->free_resources.mem += r.mem;
 	s->free_resources.disk += r.disk;
-	total_cpus_used += r.cpus;
-	total_mem_used += r.mem;
-	total_disk_used += r.disk;
+	total_cpus_used -= r.cpus;
+	total_mem_used -= r.mem;
+	total_disk_used -= r.disk;
 
 	if(DEBUG) cout << "Freeing Slave " << s->id << ": " << s->free_resources.cpus << " " << s->free_resources.mem << endl;
 
@@ -446,6 +458,7 @@ void process_offer(Event e){
 				use_resources(&allSlaves[j], todo_task.used_resources);
 				if(DEBUG) cout << "Slave scheduled: id=" << (&allSlaves[j])->id << " cpu: " << (&allSlaves[j])->free_resources.cpus << " mem: " << (&allSlaves[j])->free_resources.mem << endl;
 				f->task_lists[i][0].being_run = true;
+
 				f->current_used.cpus += todo_task.used_resources.cpus;
 				f->current_used.mem += todo_task.used_resources.mem;
 				f->current_used.disk += todo_task.used_resources.disk;
@@ -473,6 +486,7 @@ void process_offer(Event e){
 			FutureEventList.push(evt);
 
 		}
+		curr_schedules.clear();
 
 	}
 	num_offers++;
@@ -483,12 +497,12 @@ void process_offer(Event e){
 		for(int i = 0; i < num_frameworks; i++) {
 			offered_framework_ids[i] = false;
 		}
-		Event evt(Event::offer, e.get_time()+1000000, NULL_MSG);
+		Event evt(Event::offer, e.get_time()+60000000, NULL_MSG);
 		FutureEventList.push(evt);
 
-		cout << "Offers made at time " << e.get_time() << endl;
+		//cout << "Offers made at time " << << endl;
 		//Log utilization
-		cout << float(total_cpus_used)/float(total_cpus) << " " << float(total_mem_used)/float(total_mem) << " " << float(total_disk_used)/float(total_disk) << endl;
+		cout << Clock/1000000 << " " << total_cpus_used << " " << total_cpus << " " << total_mem_used << " " << total_mem << " " << total_disk_used << " " << total_disk << endl;
 
 		num_offers = 0;
 	}
@@ -516,10 +530,10 @@ void finished_task(Event e){
 		}
 	}
 	s->curr_tasks.erase(s->curr_tasks.begin() + i);
-	for(int i = 0; i < f->task_lists.size(); i++) {
-		if(f->task_lists[i][0].task_id == t_id){
-			assert(f->task_lists[i][0].being_run);
-			f->task_lists[i].pop_front();
+	for(int j = 0; j < f->task_lists.size(); j++) {
+		if(f->task_lists[j].size() > 0 && f->task_lists[j][0].task_id == t_id){
+			assert( f->task_lists[j][0].being_run );
+			f->task_lists[j].pop_front();
 			break;
 		}
 	}
