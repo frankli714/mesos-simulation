@@ -44,8 +44,7 @@ struct Msg {
 
 Msg NULL_MSG;
 
-class Event{
-	
+class Event {
 	friend bool operator <(const Event& e1, const Event& e2){
 		return e2._etime < e1._etime;
 	}		
@@ -53,14 +52,24 @@ class Event{
 	friend bool operator ==(const Event& e1,const Event& e2){
 		return e2._etime==e1._etime;
 	}
+
 	public:
-		Event(){};
-		enum EvtType{offer, finished_task};
-		Event(EvtType type, double etime, const Msg& msg):_type(type),_etime(etime), _msg(msg) {_id = global_event_id; global_event_id++;}
-		EvtType get_type(){return _type;}
-		double get_time(){return _etime;}
-		int get_id(){return _id;}
-		Msg get_msg(){return _msg;}
+		Event() {}
+		enum EvtType {
+			offer,
+			finished_task,
+			auction
+		};
+		Event(EvtType type, double etime, const Msg& msg)
+			: _type(type), _etime(etime), _msg(msg) {
+			_id = global_event_id;
+			global_event_id++;
+		}
+		EvtType get_type() { return _type; }
+		double get_time() { return _etime; }
+		int get_id() { return _id; }
+		Msg get_msg() { return _msg; }
+
 	protected:
 		EvtType _type;
 		double _etime;
@@ -121,6 +130,7 @@ double total_cpus_used = 0.0, total_mem_used = 0.0, total_disk_used = 0.0;
 void init(Slave *n);	// ok
 void process_offer(Event e);
 void finished_task(Event e);
+void run_auction(const Event& e);
 
 void rand_workload(){
 	unsigned int assigned_t_id = 0;
@@ -332,10 +342,16 @@ int main(int argc, char *argv[]){
 		if (Clock > 2506181000000)
 			break;
 
-		if(evt.get_type()==Event::offer){
+		switch (evt.get_type) {
+		case Event::offer:
 			process_offer(evt);
-		}else if(evt.get_type()==Event::finished_task){
+			break;
+		case Event::finished_task:
 			finished_task(evt);
+			break;
+		case Event::run_auction:
+			run_auction(evt);
+			break;
 		}
 /*		for(int j = 0; j < num_slaves; j++) {
 			if(DEBUG) cout << "Curr slave " << (&allSlaves[j])->id << " cpu: " << (&allSlaves[j])->free_resources.cpus << " mem: " << (&allSlaves[j])->free_resources.mem << endl;
@@ -546,4 +562,35 @@ void finished_task(Event e){
 		jobs_to_tasks[j_id].second = e.get_time() - start;
 	}
 
+}
+
+void run_auction(const Event& e) {
+	// Collect:
+	// - bids
+	unordered_map<FrameworkID, vector<vector<Bid>>> all_bids;
+
+	// - free resources
+	unordred_map<SlaveID, Resources> resources;	
+	for (const auto& kv : slave_id_to_index) {
+		SlaveID slave_id = kv.first;
+		unsigned int index = kv.second;
+		resources[slave_id] = allSlaves[index].free_resources;
+	}
+	// - reservation prices
+	Resources reservation_price(1, 1, 1);
+	// - minimum price increase
+	double min_price_increase = 0.1;
+	// - price multiplier
+	double price_multiplier = 1.1;
+
+	// Run the auction
+	Auction auction(all_bids, resources, reservation_price,
+			min_price_increase, price_multiplier);
+	auction.run();
+	
+	// Get the results
+	const unordered_map<SlaveID, vector<Bid*>>& results =
+		auction.results();
+
+	// Implement the results
 }
