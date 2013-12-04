@@ -111,6 +111,7 @@ unordered_map<unsigned int, int> slave_id_to_index;
 unordered_map<unsigned int, pair<int, unsigned int> > jobs_to_tasks;
 
 double total_cpus = 0.0, total_mem = 0.0, total_disk = 0.0;
+double total_cpus_used = 0.0, total_mem_used = 0.0, total_disk_used = 0.0;
 
 // Functions handling events
 void init(Slave *n);	// ok
@@ -276,7 +277,7 @@ int main(int argc, char *argv[]){
 	//rand_workload();
 	trace_workload();
 
-	Event evt(Event::offer, 0, NULL_MSG);
+	Event evt(Event::offer, 5637000000, NULL_MSG);
 	FutureEventList.push(evt);
 
 	for(int j=0;j<num_slaves;j++){
@@ -311,9 +312,10 @@ int main(int argc, char *argv[]){
 	//METRICS: Completion time
 	unsigned int sum = 0;
 	for( auto it = jobs_to_tasks.begin(); it != jobs_to_tasks.end(); ++it){
-		sum += it->second.second;
+		cout << it->second.second << endl;
+		//sum += it->second.second;
 	}
-	cout << "Average job completition time is " << float(sum)/float(jobs_to_tasks.size()) << endl;
+	//cout << "Average job completition time is " << float(sum)/float(jobs_to_tasks.size()) << endl;
 
 	return 0; 
 }
@@ -338,6 +340,9 @@ void use_resources(Slave* s, Resources r) {
 	s->free_resources.cpus -= r.cpus;
 	s->free_resources.mem -= r.mem;
 	s->free_resources.disk -= r.disk;
+	total_cpus_used -= r.cpus;
+	total_mem_used -= r.mem;
+	total_disk_used -= r.disk;
 	cout << "Using Slave " << s->id << ": " << s->free_resources.cpus << " " << s->free_resources.mem << endl;
 }
 
@@ -345,13 +350,16 @@ void release_resources(Slave* s, Resources r) {
 	s->free_resources.cpus += r.cpus;
 	s->free_resources.mem += r.mem;
 	s->free_resources.disk += r.disk;
+	total_cpus_used += r.cpus;
+	total_mem_used += r.mem;
+	total_disk_used += r.disk;
+
 	cout << "Freeing Slave " << s->id << ": " << s->free_resources.cpus << " " << s->free_resources.mem << endl;
 
 }
 
 int curr_framework_offer = 0;
 unsigned int num_offers = 0;
-bool make_offers = true;
 vector<unsigned int> offered_framework_ids;
 
 void round_robin() {
@@ -382,7 +390,6 @@ void drf() {
 }
 
 void process_offer(Event e){
-	make_offers = true;
 	cout <<"Time is " << Clock << " process_offer function" << endl;
 
 #ifdef RR
@@ -447,6 +454,13 @@ void process_offer(Event e){
 		Event evt(Event::offer, e.get_time(), NULL_MSG);
 		FutureEventList.push(evt);
 	}else {
+		offered_framework_ids.clear();
+		Event evt(Event::offer, e.get_time()+1000000, NULL_MSG);
+		FutureEventList.push(evt);
+
+		//Log utilization
+		cout << float(total_cpus_used)/float(total_cpus) << " " << float(total_mem_used)/float(total_mem) << " " << float(total_disk_used)/float(total_disk) << endl;
+
 		num_offers = 0;
 	}
 
@@ -484,15 +498,6 @@ void finished_task(Event e){
 	if(jobs_to_tasks[j_id].first==0){
 		unsigned int start = jobs_to_tasks[j_id].second;
 		jobs_to_tasks[j_id].second = e.get_time() - start;
-	}
-
-	if(make_offers){
-		offered_framework_ids.clear();
-		// Add 0.0001 so that the offer happens after all finished_events that happen at the same time. 
-		// This ensure a single offer after all simultaneous finish_events
-		Event evt(Event::offer, e.get_time()+0.0001, NULL_MSG);
-		FutureEventList.push(evt);
-		make_offers = false;
 	}
 
 }
