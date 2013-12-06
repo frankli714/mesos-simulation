@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+#define DEBUG 0
+
 typedef unsigned int SlaveID;
 typedef unsigned int TaskID;
 typedef unsigned int FrameworkID;

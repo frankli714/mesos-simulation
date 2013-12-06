@@ -10,7 +10,8 @@
 
 using namespace std;
 
-extern int num_frameworks;
+// FIXME
+int num_frameworks = 0;
 
 Auction::Auction(
       const unordered_map<FrameworkID, vector<vector<Bid> > >& _all_bids,
