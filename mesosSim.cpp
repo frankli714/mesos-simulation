@@ -56,6 +56,9 @@ class MesosSimulation : public Simulation<MesosSimulation> {
  public:
   MesosSimulation();
 
+  void use_resources(size_t slave, const Resources& resources);
+  void release_resources(size_t slave, const Resources& resources);
+
   Indexer<Slave> allSlaves;
   Indexer<Framework> allFrameworks;
   Indexer<Task> allTasks;
@@ -261,21 +264,24 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
-void use_resources(MesosSimulation& sim, Slave *s, Resources r) {
-  s->free_resources -= r;
-  sim.total_resources += r;
+void MesosSimulation::use_resources(
+    size_t slave, const Resources& resources) {
+  allSlaves[slave].free_resources -= resources;
+  total_resources += resources;
   if (DEBUG)
-    cout << "Using Slave " << s->id() << ": " << s->free_resources.cpus << " "
-         << s->free_resources.mem << endl;
+    cout << "Using Slave " << slave << ": " 
+      << allSlaves[slave].free_resources.cpus << " " 
+      << allSlaves[slave].free_resources.mem << endl;
 }
 
-void release_resources(MesosSimulation& sim, Slave *s, Resources r) {
-  s->free_resources += r; 
-  sim.used_resources -= r;
+void MesosSimulation::release_resources(
+    size_t slave, const Resources& resources) {
+  allSlaves[slave].free_resources += resources;
+  total_resources -= resources;
   if (DEBUG)
-    cout << "Freeing Slave " << s->id() << ": " << s->free_resources.cpus << " "
-         << s->free_resources.mem << endl;
-
+    cout << "Using Slave " << slave << ": " 
+      << allSlaves[slave].free_resources.cpus << " " 
+      << allSlaves[slave].free_resources.mem << endl;
 }
 
 unsigned int curr_framework_offer = 0;
@@ -348,7 +354,7 @@ void OfferEvent::run(MesosSimulation& sim) {
       if (slave.free_resources >= todo_task.used_resources) {
         if (DEBUG) cout << "Should schedule" << endl;
         todo_task.slave_id = slave.id();
-        use_resources(sim, &slave, todo_task.used_resources);
+        sim.use_resources(slave.id(), todo_task.used_resources);
 
         todo_task.being_run = true;
         f.current_used += todo_task.used_resources;
@@ -397,7 +403,7 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
     cout << "Time is " << sim.get_clock() << " finished_task "
          << t_id << endl;
   }
-  release_resources(sim, &slave, task.used_resources);
+  sim.release_resources(slave.id(), task.used_resources);
   framework.current_used -= task.used_resources;
   slave.curr_tasks.erase(t_id);
 
