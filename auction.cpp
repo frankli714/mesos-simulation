@@ -133,6 +133,7 @@ void Auction::run() {
   }
 }
 
+/*
 double bids_from_tasks(unordered_map<SlaveID, Resources> free,
         vector<Task*> tasks,
         vector<vector<Bid>> bids,
@@ -154,3 +155,4 @@ double bids_from_tasks(unordered_map<SlaveID, Resources> free,
         bids.push_back(task_bids);
     }
 }
+*/
