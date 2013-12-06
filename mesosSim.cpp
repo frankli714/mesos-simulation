@@ -354,14 +354,6 @@ void init(Slave *n) {
   n->free_resources = rsrc;
 }
 
-bool task_on_slave(Slave *s, Resources r) {
-  if (s->free_resources.cpus >= r.cpus && s->free_resources.mem >= r.mem &&
-      s->free_resources.disk >= r.disk) {
-    return true;
-  }
-  return false;
-}
-
 void use_resources(Slave *s, Resources r) {
   s->free_resources -= r;
   total_resources += r;
@@ -425,8 +417,6 @@ void OfferEvent::run() {
   if (DEBUG) cout << "Framework " << curr_framework_offer << endl;
   offered_framework_ids[curr_framework_offer] = true;
 
-  vector<Task> curr_schedules;
-
   for (int i = 0; i < f->task_lists.size(); i++) {
     if (f->task_lists[i].size() == 0 || f->task_lists[i][0].being_run ||
         f->task_lists[i][0].start_time > this->get_time()) {
@@ -439,45 +429,31 @@ void OfferEvent::run() {
            << f->task_lists[i][0].used_resources.mem << " being_run "
            << f->task_lists[i][0].being_run << endl;
     for (int j = 0; j < num_slaves; j++) {
-      if (task_on_slave(&allSlaves[j], f->task_lists[i][0].used_resources)) {
+      if (allSlaves[j].free_resources >= f->task_lists[i][0].used_resources) {
         if (DEBUG) cout << "Should schedule" << endl;
         Task todo_task = f->task_lists[i][0];
         todo_task.slave_id = allSlaves[j].id;
-        curr_schedules.push_back(todo_task);
         use_resources(&allSlaves[j], todo_task.used_resources);
-        if (DEBUG)
+
+        f->task_lists[i][0].being_run = true;
+        f->current_used += todo_task.used_resources;
+
+        allSlaves[j].curr_tasks.push_back(todo_task);
+        FutureEventList.push(
+            new FinishedTaskEvent(this->get_time() + todo_task.task_time,
+              todo_task.slave_id, curr_framework_offer, todo_task.task_id,
+              todo_task.job_id));
+
+        if (DEBUG) {
           cout << "Slave scheduled: id=" << (&allSlaves[j])->id
                << " cpu: " << (&allSlaves[j])->free_resources.cpus
                << " mem: " << (&allSlaves[j])->free_resources.mem << endl;
-        f->task_lists[i][0].being_run = true;
-
-        f->current_used += todo_task.used_resources;
+        }
         break;
       }
     }
   }
-  if (curr_schedules.size() > 0) {
-    //Only needed if making offer to everyone, so everyone sees same view
-    /*		for(int i = 0; i < curr_schedules.size(); i++) {
-    			Task task = curr_schedules[i];
-    			release_resources(&allSlaves[map[task.slave_id]], task.used_resources);
-    
-    		}*/
-    for (int i = 0; i < curr_schedules.size(); i++) {
-      Task task = curr_schedules[i];
-      Slave *s = &allSlaves[slave_id_to_index[task.slave_id]];
 
-      //Only needed if making offer to everyone, so everyone sees same view
-      //use_resources(s, task.used_resources);
-      s->curr_tasks.push_back(task);
-      FutureEventList.push(new FinishedTaskEvent(
-            this->get_time() + task.task_time, task.slave_id,
-            curr_framework_offer, task.task_id, task.job_id));
-
-    }
-    curr_schedules.clear();
-
-  }
   num_offers++;
   if (num_offers < num_frameworks) {
     FutureEventList.push(new OfferEvent(this->get_time()));
@@ -495,7 +471,6 @@ void OfferEvent::run() {
 
     num_offers = 0;
   }
-
 }
 
 void FinishedTaskEvent::run() {
