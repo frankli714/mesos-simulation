@@ -119,8 +119,6 @@ int max_job_id = 0;
 unordered_map<unsigned int, pair<int, unsigned int> > jobs_to_tasks;
 unordered_map<unsigned int, int> jobs_to_num_tasks;
 
-unordered_map<unsigned int, bool> offered_framework_ids;
-
 Resources total_resources, used_resources;
 
 // Functions handling events
@@ -152,7 +150,6 @@ void rand_workload() {
 void trace_workload() {
   for (int i = 0; i < num_frameworks; i++) {
     Framework& f = allFrameworks.add();
-    offered_framework_ids[f.id()] = false;
   }
 
   string line;
@@ -326,7 +323,6 @@ void release_resources(Slave *s, Resources r) {
 }
 
 unsigned int curr_framework_offer = 0;
-unsigned int num_offers = 0;
 
 void round_robin() {
   curr_framework_offer++;
@@ -337,19 +333,18 @@ void drf() {
   double max_share = 1.0;
   double next_id = 0;
   for (int i = 0; i < allFrameworks.size(); i++) {
-    if (!offered_framework_ids[i]) {
-      const Framework& f = allFrameworks[i];
-      double cpu_share = f.current_used.cpus / total_resources.cpus;
-      double mem_share = f.current_used.mem / total_resources.mem;
-      double disk_share = f.current_used.disk / total_resources.disk;
-      double dominant_share = max(cpu_share, max(mem_share, disk_share));
-      if (DEBUG)
-        cout << "DRF computes dominant share for framework " << i << " is "
-             << dominant_share << endl;
-      if (dominant_share < max_share) {
-        max_share = dominant_share;
-        next_id = i;
-      }
+    const Framework& f = allFrameworks[i];
+    double cpu_share = f.current_used.cpus / total_resources.cpus;
+    double mem_share = f.current_used.mem / total_resources.mem;
+    double disk_share = f.current_used.disk / total_resources.disk;
+    double dominant_share = max({cpu_share, mem_share, disk_share});
+    if (DEBUG) {
+      cout << "DRF computes dominant share for framework " << i << " is "
+           << dominant_share << endl;
+    }
+    if (dominant_share < max_share) {
+      max_share = dominant_share;
+      next_id = i;
     }
   }
   if (DEBUG) cout << "DRF is offering next to framework " << next_id << endl;
@@ -368,7 +363,6 @@ void OfferEvent::run() {
 
   Framework& f = allFrameworks[curr_framework_offer];
   if (DEBUG) cout << "Framework " << curr_framework_offer << endl;
-  offered_framework_ids[curr_framework_offer] = true;
 
   for (int i = 0; i < f.task_lists.size(); ++i) {
     deque<size_t>& task_list = f.task_lists[i];
@@ -411,23 +405,13 @@ void OfferEvent::run() {
     }
   }
 
-  num_offers++;
-  if (num_offers < num_frameworks) {
-    FutureEventList.push(new OfferEvent(this->get_time()));
-  } else {
-    for (int i = 0; i < num_frameworks; i++) {
-      offered_framework_ids[i] = false;
-    }
-    FutureEventList.push(new OfferEvent(this->get_time() + 60000000));
+  FutureEventList.push(new OfferEvent(this->get_time() + 60000000));
 
-    //cout << "Offers made at time " << << endl;
-    //Log utilization
-    cout << Clock / 1000000 << " " << used_resources.cpus << " " << total_resources.cpus
-         << " " << used_resources.mem << " " << total_resources.mem 
-         << " " << used_resources.disk << " " << total_resources.disk << endl;
-
-    num_offers = 0;
-  }
+  //cout << "Offers made at time " << << endl;
+  //Log utilization
+  cout << Clock / 1000000 << " " << used_resources.cpus << " " << total_resources.cpus
+       << " " << used_resources.mem << " " << total_resources.mem 
+       << " " << used_resources.disk << " " << total_resources.disk << endl;
 }
 
 void FinishedTaskEvent::run() {
