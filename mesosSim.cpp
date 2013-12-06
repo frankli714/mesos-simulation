@@ -1,24 +1,15 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <iostream>
-#include <assert.h>
-#include <fstream>
-#include <set>
-#include <math.h>
-#include <queue>
-#include <stack>
-#include <climits>
 #include <algorithm>
-
-//#ifdef _LIBCPP_VERSION
+#include <cassert>
+#include <climits>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <fstream>
+#include <iostream>
+#include <queue>
+#include <set>
+#include <stack>
 #include <unordered_map>
-/*#else
-#include <tr1/unordered_map>
-using namespace std::tr1;
-#endif*/
-
-#include "shared.hpp"
-#include "auction.hpp"
 
 #include "shared.hpp"
 #include "auction.hpp"
@@ -303,11 +294,12 @@ int main(int argc, char *argv[]) {
   Event evt(Event::offer, 5637000000, NULL_MSG);
   FutureEventList.push(evt);
 
-  for (int j = 0; j < num_slaves; j++) {
-    if (DEBUG)
+  if (DEBUG) {
+    for (int j = 0; j < num_slaves; j++) {
       cout << "Slave " << (&allSlaves[j])->id
            << " has total cpus: " << (&allSlaves[j])->resources.cpus
            << " mem: " << (&allSlaves[j])->resources.mem << endl;
+    }
   }
 
   while (!FutureEventList.empty()) {
