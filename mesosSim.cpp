@@ -115,8 +115,7 @@ unordered_map<unsigned int, int> jobs_to_num_tasks;
 
 unordered_map<unsigned int, bool> offered_framework_ids;
 
-double total_cpus = 0.0, total_mem = 0.0, total_disk = 0.0;
-double total_cpus_used = 0.0, total_mem_used = 0.0, total_disk_used = 0.0;
+Resources total_resources, used_resources;
 
 // Functions handling events
 void init(Slave *n);  // ok
@@ -261,10 +260,7 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < num_slaves; i++) {
     init(&allSlaves[i]);
     slave_id_to_index[allSlaves[i].id] = i;
-
-    total_cpus += allSlaves[i].resources.cpus;
-    total_mem += allSlaves[i].resources.mem;
-    total_disk += allSlaves[i].resources.disk;
+    total_resources += allSlaves[i].resources;
   }
 
   //rand_workload();
@@ -371,25 +367,16 @@ bool task_on_slave(Slave *s, Resources r) {
 }
 
 void use_resources(Slave *s, Resources r) {
-  s->free_resources.cpus -= r.cpus;
-  s->free_resources.mem -= r.mem;
-  s->free_resources.disk -= r.disk;
-  total_cpus_used += r.cpus;
-  total_mem_used += r.mem;
-  total_disk_used += r.disk;
+  s->free_resources -= r;
+  total_resources += r;
   if (DEBUG)
     cout << "Using Slave " << s->id << ": " << s->free_resources.cpus << " "
          << s->free_resources.mem << endl;
 }
 
 void release_resources(Slave *s, Resources r) {
-  s->free_resources.cpus += r.cpus;
-  s->free_resources.mem += r.mem;
-  s->free_resources.disk += r.disk;
-  total_cpus_used -= r.cpus;
-  total_mem_used -= r.mem;
-  total_disk_used -= r.disk;
-
+  s->free_resources += r; 
+  used_resources -= r;
   if (DEBUG)
     cout << "Freeing Slave " << s->id << ": " << s->free_resources.cpus << " "
          << s->free_resources.mem << endl;
@@ -410,9 +397,9 @@ void drf() {
   for (int i = 0; i < num_frameworks; i++) {
     if (!offered_framework_ids[i]) {
       Framework *f = &allFrameworks[i];
-      double cpu_share = f->current_used.cpus / total_cpus;
-      double mem_share = f->current_used.mem / total_mem;
-      double disk_share = f->current_used.disk / total_disk;
+      double cpu_share = f->current_used.cpus / total_resources.cpus;
+      double mem_share = f->current_used.mem / total_resources.mem;
+      double disk_share = f->current_used.disk / total_resources.disk;
       double dominant_share = max(cpu_share, max(mem_share, disk_share));
       if (DEBUG)
         cout << "DRF computes dominant share for framework " << i << " is "
@@ -512,9 +499,9 @@ void process_offer(Event e) {
 
     //cout << "Offers made at time " << << endl;
     //Log utilization
-    cout << Clock / 1000000 << " " << total_cpus_used << " " << total_cpus
-         << " " << total_mem_used << " " << total_mem << " " << total_disk_used
-         << " " << total_disk << endl;
+    cout << Clock / 1000000 << " " << used_resources.cpus << " " << total_resources.cpu
+         << " " << used_resources.mem << " " << total_resources.mem 
+         << " " << used_resources.disk << " " << total_resources.disk << endl;
 
     num_offers = 0;
   }
