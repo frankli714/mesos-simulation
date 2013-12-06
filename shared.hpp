@@ -94,4 +94,12 @@ std::vector<double> split(const std::string& str, char delim);
 // Check whether [s1, e1] intersects [s2, e2].
 bool intersect(double s1, double e1, double s2, double e2);
 
+// Comparator for pointer types.
+// Taken from <http://stackoverflow.com/questions/1517854/priority-queue-comparison-for-pointers>.
+template<typename Type, typename Compare = std::less<Type> >
+struct pless : public std::binary_function<Type *, Type *, bool> {
+    bool operator()(const Type *x, const Type *y) const
+        { return Compare()(*x, *y); }
+};
+
 #endif  // __SHARED_HPP__

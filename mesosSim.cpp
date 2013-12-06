@@ -27,15 +27,6 @@ double Clock;
 
 unsigned int global_event_id = 0;
 
-struct Msg {
-  unsigned int to;
-  unsigned int from;
-  unsigned int val;
-  unsigned int val2;
-};
-
-Msg NULL_MSG;
-
 class Event {
   friend bool operator<(const Event &e1, const Event &e2) {
     return e2._etime < e1._etime;
@@ -47,31 +38,47 @@ class Event {
 
  public:
   Event() {}
-  enum EvtType {
-    offer,
-    finished_task,
-    auction
-  };
-  Event(EvtType type, double etime, const Msg &msg)
-      : _type(type), _etime(etime), _msg(msg) {
+  virtual ~Event() {}
+  Event(double etime) : _etime(etime) {
     _id = global_event_id;
     global_event_id++;
   }
-  EvtType get_type() { return _type; }
   double get_time() { return _etime; }
   int get_id() { return _id; }
-  Msg get_msg() { return _msg; }
+
+  virtual void run() = 0;
 
  protected:
-  EvtType _type;
   double _etime;
   int _id;
-  Msg _msg;
 };
 
-priority_queue<Event> FutureEventList;
+class OfferEvent : public Event {
+ public:
+  OfferEvent(double etime) : Event(etime) {}
+  virtual void run();
+};
 
-typedef struct {
+class FinishedTaskEvent : public Event {
+ public:
+  FinishedTaskEvent(double etime, unsigned int slave_id,
+                    unsigned int framework_id, unsigned int task_id,
+                    unsigned int job_id)
+      : Event(etime),
+        _slave_id(slave_id),
+        _framework_id(framework_id),
+        _task_id(task_id),
+        _job_id(job_id) {}
+  virtual void run();
+
+ private:
+  unsigned int _slave_id;
+  unsigned int _framework_id;
+  unsigned int _task_id;
+  unsigned int _job_id;
+};
+
+struct Task {
   unsigned int slave_id;
   unsigned int task_id;
   unsigned int job_id;
@@ -79,7 +86,7 @@ typedef struct {
   double task_time;
   double start_time;
   bool being_run;
-} Task;
+};
 
 class Slave {
  public:
@@ -104,6 +111,7 @@ class Master {
 Slave *allSlaves;
 Master master;
 Framework *allFrameworks;
+priority_queue<Event*, vector<Event*>, pless<Event>> FutureEventList;
 
 int num_slaves = 10;
 int num_frameworks = 397;
@@ -119,8 +127,6 @@ Resources total_resources, used_resources;
 
 // Functions handling events
 void init(Slave *n);  // ok
-void process_offer(Event e);
-void finished_task(Event e);
 void run_auction(const Event &e);
 
 void rand_workload() {
@@ -287,8 +293,7 @@ int main(int argc, char *argv[]) {
   }
   cout << "DONE " << sum_size << endl;
 
-  Event evt(Event::offer, 5637000000, NULL_MSG);
-  FutureEventList.push(evt);
+  FutureEventList.push(new OfferEvent(5637000000));
 
   if (DEBUG) {
     for (int j = 0; j < num_slaves; j++) {
@@ -301,23 +306,14 @@ int main(int argc, char *argv[]) {
   while (!FutureEventList.empty()) {
     if (DEBUG) cout << endl;
 
-    Event evt = FutureEventList.top();
+    Event* evt = FutureEventList.top();
     FutureEventList.pop();
-    Clock = evt.get_time();
+    Clock = evt->get_time();
 
     if (Clock > 2506181000000) break;
 
-    switch (evt.get_type()) {
-      case Event::offer:
-        process_offer(evt);
-        break;
-      case Event::finished_task:
-        finished_task(evt);
-        break;
-      case Event::auction:
-        run_auction(evt);
-        break;
-    }
+    evt->run();
+    delete evt;
     /*		for(int j = 0; j < num_slaves; j++) {
     			if(DEBUG) cout << "Curr slave " << (&allSlaves[j])->id << " cpu: " <<
     (&allSlaves[j])->free_resources.cpus << " mem: " <<
@@ -415,7 +411,7 @@ void drf() {
 
 }
 
-void process_offer(Event e) {
+void OfferEvent::run() {
   if (DEBUG) cout << "Time is " << Clock << " process_offer function" << endl;
 
 #ifdef RR
@@ -433,7 +429,7 @@ void process_offer(Event e) {
 
   for (int i = 0; i < f->task_lists.size(); i++) {
     if (f->task_lists[i].size() == 0 || f->task_lists[i][0].being_run ||
-        f->task_lists[i][0].start_time > e.get_time()) {
+        f->task_lists[i][0].start_time > this->get_time()) {
       if (DEBUG) cout << "No task to currently run in thread " << i << endl;
       continue;
     }
@@ -455,10 +451,7 @@ void process_offer(Event e) {
                << " mem: " << (&allSlaves[j])->free_resources.mem << endl;
         f->task_lists[i][0].being_run = true;
 
-        f->current_used.cpus += todo_task.used_resources.cpus;
-        f->current_used.mem += todo_task.used_resources.mem;
-        f->current_used.disk += todo_task.used_resources.disk;
-
+        f->current_used += todo_task.used_resources;
         break;
       }
     }
@@ -477,10 +470,9 @@ void process_offer(Event e) {
       //Only needed if making offer to everyone, so everyone sees same view
       //use_resources(s, task.used_resources);
       s->curr_tasks.push_back(task);
-      Msg msg = { task.slave_id, curr_framework_offer, task.task_id,
-                  task.job_id };
-      Event evt(Event::finished_task, e.get_time() + task.task_time, msg);
-      FutureEventList.push(evt);
+      FutureEventList.push(new FinishedTaskEvent(
+            this->get_time() + task.task_time, task.slave_id,
+            curr_framework_offer, task.task_id, task.job_id));
 
     }
     curr_schedules.clear();
@@ -488,14 +480,12 @@ void process_offer(Event e) {
   }
   num_offers++;
   if (num_offers < num_frameworks) {
-    Event evt(Event::offer, e.get_time(), NULL_MSG);
-    FutureEventList.push(evt);
+    FutureEventList.push(new OfferEvent(this->get_time()));
   } else {
     for (int i = 0; i < num_frameworks; i++) {
       offered_framework_ids[i] = false;
     }
-    Event evt(Event::offer, e.get_time() + 60000000, NULL_MSG);
-    FutureEventList.push(evt);
+    FutureEventList.push(new OfferEvent(this->get_time() + 60000000));
 
     //cout << "Offers made at time " << << endl;
     //Log utilization
@@ -508,11 +498,11 @@ void process_offer(Event e) {
 
 }
 
-void finished_task(Event e) {
-  unsigned int s_id = e.get_msg().to;
-  unsigned int t_id = e.get_msg().val;
-  unsigned int f_id = e.get_msg().from;
-  unsigned int j_id = e.get_msg().val2;
+void FinishedTaskEvent::run() {
+  unsigned int s_id = this->_slave_id;
+  unsigned int t_id = this->_task_id;
+  unsigned int f_id = this->_framework_id;
+  unsigned int j_id = this->_job_id;
   Slave *s = &allSlaves[slave_id_to_index[s_id]];
   Framework *f = &allFrameworks[f_id];
 
@@ -523,9 +513,7 @@ void finished_task(Event e) {
         cout << "Time is " << Clock << " finished_task "
              << s->curr_tasks[i].task_id << endl;
       release_resources(s, s->curr_tasks[i].used_resources);
-      f->current_used.cpus -= s->curr_tasks[i].used_resources.cpus;
-      f->current_used.mem -= s->curr_tasks[i].used_resources.mem;
-      f->current_used.disk -= s->curr_tasks[i].used_resources.disk;
+      f->current_used -= s->curr_tasks[i].used_resources;
 
       break;
     }
@@ -541,7 +529,7 @@ void finished_task(Event e) {
   jobs_to_tasks[j_id].first -= 1;
   if (jobs_to_tasks[j_id].first == 0) {
     unsigned int start = jobs_to_tasks[j_id].second;
-    jobs_to_tasks[j_id].second = e.get_time() - start;
+    jobs_to_tasks[j_id].second = this->get_time() - start;
   }
 
 }
