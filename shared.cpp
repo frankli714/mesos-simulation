@@ -25,8 +25,8 @@ vector<double> split(const string& str, char delim) {
 
 
 bool intersect(double s1, double e1, double s2, double e2) {
-	std::assert(s1 <= e1);
-	std::assert(s2 <= e2);
+	assert(s1 <= e1);
+	assert(s2 <= e2);
 
   if (s1 > e2 || s2 > e1) {
     return false;

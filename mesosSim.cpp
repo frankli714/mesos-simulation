@@ -307,14 +307,14 @@ int main(int argc, char *argv[]) {
 
     if (Clock > 2506181000000) break;
 
-    switch (evt.get_type) {
+    switch (evt.get_type()) {
       case Event::offer:
         process_offer(evt);
         break;
       case Event::finished_task:
         finished_task(evt);
         break;
-      case Event::run_auction:
+      case Event::auction:
         run_auction(evt);
         break;
     }
@@ -499,7 +499,7 @@ void process_offer(Event e) {
 
     //cout << "Offers made at time " << << endl;
     //Log utilization
-    cout << Clock / 1000000 << " " << used_resources.cpus << " " << total_resources.cpu
+    cout << Clock / 1000000 << " " << used_resources.cpus << " " << total_resources.cpus
          << " " << used_resources.mem << " " << total_resources.mem 
          << " " << used_resources.disk << " " << total_resources.disk << endl;
 
@@ -552,7 +552,7 @@ void run_auction(const Event &e) {
   unordered_map<FrameworkID, vector<vector<Bid> > > all_bids;
 
   // - free resources
-  unordred_map<SlaveID, Resources> resources;
+  unordered_map<SlaveID, Resources> resources;
   for (const auto &kv : slave_id_to_index) {
     SlaveID slave_id = kv.first;
     unsigned int index = kv.second;
