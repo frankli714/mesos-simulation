@@ -26,9 +26,9 @@ struct Resources {
   }
 
   Resources& operator-=(const Resources& other) {
-    cpus += other.cpus;
-    mem += other.mem;
-    disk += other.disk;
+    cpus -= other.cpus;
+    mem -= other.mem;
+    disk -= other.disk;
     return *this;
   }
 
