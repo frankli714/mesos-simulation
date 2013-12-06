@@ -2,6 +2,12 @@
 #define __SHARED_HPP__
 
 #include <algorithm>
+#include <string>
+#include <vector>
+
+typedef unsigned int SlaveID;
+typedef unsigned int TaskID;
+typedef unsigned int FrameworkID;
 
 struct Resources {
 	double cpus;
@@ -81,4 +87,11 @@ inline bool operator<=(const Resources& left, const Resources& right) {
   return left.cpus <= right.cpus && left.mem <= right.mem && left.disk <=
     right.disk;
 }
+
+// Split a string of doubles separated by delim into a vector<double>.
+std::vector<double> split(const std::string& str, char delim);
+
+// Check whether [s1, e1] intersects [s2, e2].
+bool intersect(double s1, double e1, double s2, double e2);
+
 #endif  // __SHARED_HPP__

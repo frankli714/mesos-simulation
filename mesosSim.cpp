@@ -164,31 +164,6 @@ void rand_workload() {
     }
 
   }
-
-}
-
-vector<double> split(string str, char delim) {
-  vector<double> split_v;
-  int i = 0;
-  string buf = "";
-  while (i < str.length()) {
-    if (str[i] != delim)
-      buf += str[i];
-    else {
-      split_v.push_back(atof(buf.c_str()));
-      buf = "";
-    }
-    i++;
-  }
-  if (!buf.empty()) split_v.push_back(atof(buf.c_str()));
-  return split_v;
-}
-
-bool intersect(double s1, double e1, double s2, double e2) {
-  if (s1 > e2 || s2 > e1) {
-    return false;
-  }
-  return true;
 }
 
 void trace_workload() {
