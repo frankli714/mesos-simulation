@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <math.h>
 #include <stdlib.h>
 #include <iostream>
 #include <algorithm>
@@ -7,6 +8,7 @@
 
 #include "auction.hpp"
 #include "shared.hpp"
+#define RATE = 0.01
 
 using namespace std;
 
@@ -129,4 +131,26 @@ void Auction::run() {
     ++framework;
     framework %= num_frameworks;
   }
+}
+
+double bids_from_tasks(unordered_map<SlaveID, Resources> free,
+        vector<Task*> tasks,
+        vector<vector<Bid>> bids,
+        double low,
+        double high,
+        double budget){
+    for(task t in tasks){
+        if (task->being_run) break;
+        task_bids = new Vector<Bid*>
+        for (auto slave_resources in free){
+            if (r < slave_resources.second){
+                Bid b;
+                b.requested_resources = r;
+                b.slave_id = slave_resources.first;
+                b.wtp = sqrt( low*low + budget * (high - low) )
+                task_bids.push_back(b)
+            }
+        }
+        bids.push_back(task_bids);
+    }
 }
