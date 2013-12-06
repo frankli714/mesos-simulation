@@ -25,8 +25,6 @@ using namespace std;
 
 double Clock;
 
-unsigned int global_event_id = 0;
-
 class Event {
   friend bool operator<(const Event &e1, const Event &e2) {
     return e2._etime < e1._etime;
@@ -39,18 +37,13 @@ class Event {
  public:
   Event() {}
   virtual ~Event() {}
-  Event(double etime) : _etime(etime) {
-    _id = global_event_id;
-    global_event_id++;
-  }
+  Event(double etime) : _etime(etime) {}
   double get_time() { return _etime; }
-  int get_id() { return _id; }
 
   virtual void run() = 0;
 
  protected:
   double _etime;
-  int _id;
 };
 
 class OfferEvent : public Event {
