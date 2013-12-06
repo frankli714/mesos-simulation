@@ -35,12 +35,17 @@ class Auction {
       const double min_price_increase, 
       const double price_multiplier);
   
+  void run();
+
+  const unordered_map<SlaveID, vector<Bid*>>& results() const {
+    return winning_bids_per_slave;
+  }
+
+ private:
   bool displace(const Bid& new_bid,
                 vector<Bid*>& displaced_bids,
                 double& total_cost);
-  void run();
 
- private:
   unordered_map<FrameworkID, vector<vector<Bid>>> all_bids;
   unordered_map<SlaveID, Resources> resources;
   Resources reservation_price;
