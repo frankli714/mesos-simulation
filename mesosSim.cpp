@@ -90,11 +90,23 @@ struct Task {
 
 class Slave {
  public:
+  Slave() {
+    id = max_slave_id;
+    max_slave_id++;
+    Resources rsrc = { 1, 1, 1 };
+    //	Resources rsrc = {4.0, 5, 1 };
+    resources = rsrc;
+    free_resources = rsrc;
+  }
   unsigned int id;
   Resources resources;
   vector<Task> curr_tasks;
   Resources free_resources;
+
+ private:
+  static unsigned int max_slave_id;
 };
+unsigned int Slave::max_slave_id = 0;
 
 class Framework {
  public:
@@ -115,7 +127,6 @@ priority_queue<Event*, vector<Event*>, pless<Event>> FutureEventList;
 
 int num_slaves = 10;
 int num_frameworks = 397;
-int max_slave_id = 0;
 int max_job_id = 0;
 unordered_map<unsigned int, int> slave_id_to_index;
 unordered_map<unsigned int, pair<int, unsigned int> > jobs_to_tasks;
@@ -126,7 +137,6 @@ unordered_map<unsigned int, bool> offered_framework_ids;
 Resources total_resources, used_resources;
 
 // Functions handling events
-void init(Slave *n);  // ok
 void run_auction(const Event &e);
 
 void rand_workload() {
@@ -264,7 +274,6 @@ int main(int argc, char *argv[]) {
 
   // lets initialize slave state and the event queue
   for (int i = 0; i < num_slaves; i++) {
-    init(&allSlaves[i]);
     slave_id_to_index[allSlaves[i].id] = i;
     total_resources += allSlaves[i].resources;
   }
@@ -343,15 +352,6 @@ int main(int argc, char *argv[]) {
   //float(sum)/float(jobs_to_tasks.size()) << endl;
 
   return 0;
-}
-
-void init(Slave *n) {
-  n->id = max_slave_id;
-  max_slave_id++;
-  Resources rsrc = { 1, 1, 1 };
-  //	Resources rsrc = {4.0, 5, 1 };
-  n->resources = rsrc;
-  n->free_resources = rsrc;
 }
 
 void use_resources(Slave *s, Resources r) {
