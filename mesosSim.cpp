@@ -10,6 +10,7 @@
 #include <set>
 #include <stack>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "shared.hpp"
 #include "auction.hpp"
@@ -71,9 +72,8 @@ class FinishedTaskEvent : public Event {
   unsigned int _job_id;
 };
 
-struct Task {
+struct Task : public Indexable {
   unsigned int slave_id;
-  unsigned int task_id;
   unsigned int job_id;
   Resources used_resources;
   double task_time;
@@ -81,30 +81,22 @@ struct Task {
   bool being_run;
 };
 
-class Slave {
+class Slave : public Indexable {
  public:
   Slave() {
-    id = max_slave_id;
-    max_slave_id++;
     Resources rsrc = { 1, 1, 1 };
     //	Resources rsrc = {4.0, 5, 1 };
     resources = rsrc;
     free_resources = rsrc;
   }
-  unsigned int id;
   Resources resources;
-  vector<Task> curr_tasks;
+  unordered_set<size_t> curr_tasks;
   Resources free_resources;
-
- private:
-  static unsigned int max_slave_id;
 };
-unsigned int Slave::max_slave_id = 0;
 
-class Framework {
+class Framework : public Indexable {
  public:
-  unsigned int id;
-  vector<deque<Task> > task_lists;
+  vector<deque<size_t>> task_lists;
   Resources current_used;
 };
 
@@ -113,15 +105,17 @@ class Master {
   vector<Framework> frameworks;
 };
 
-Slave *allSlaves;
+Indexer<Slave> allSlaves;
+Indexer<Framework> allFrameworks;
+Indexer<Task> allTasks;
 Master master;
-Framework *allFrameworks;
+
 priority_queue<Event*, vector<Event*>, pless<Event>> FutureEventList;
 
 int num_slaves = 10;
 int num_frameworks = 397;
 int max_job_id = 0;
-unordered_map<unsigned int, int> slave_id_to_index;
+
 unordered_map<unsigned int, pair<int, unsigned int> > jobs_to_tasks;
 unordered_map<unsigned int, int> jobs_to_num_tasks;
 
@@ -133,23 +127,14 @@ Resources total_resources, used_resources;
 void run_auction(const Event &e);
 
 void rand_workload() {
-  unsigned int assigned_t_id = 0;
   // This simply generates random tasks for debugging purposes
   srand(0);
   for (int i = 0; i < num_frameworks; i++) {
-    Framework *f = &allFrameworks[i];
-    f->id = i;
-    Resources r;
-    r.cpus = 0;
-    r.mem = 0;
-    r.disk = 0;
-    f->current_used = r;
+    Framework& framework = allFrameworks.add(); 
     for (int j = 0; j < 2; j++) {
-      deque<Task> q;
+      deque<size_t> q;
       for (int k = 0; k < 2; k++) {
-        Task t;
-        t.task_id = assigned_t_id;
-        assigned_t_id++;
+        Task& t = allTasks.add();
 
         t.used_resources.cpus = static_cast<double>(rand() % 4);
         t.used_resources.mem = static_cast<double>(rand() % 5);
@@ -157,23 +142,19 @@ void rand_workload() {
 
         t.being_run = false;
         t.task_time = (double)(rand() % 10);
-        q.push_back(t);
+        q.push_back(t.id());
       }
-      f->task_lists.push_back(q);
+      framework.task_lists.push_back(q);
     }
-
   }
 }
 
 void trace_workload() {
   for (int i = 0; i < num_frameworks; i++) {
-    Framework *f = &allFrameworks[i];
-    f->id = i;
-    f->current_used = { 0, 0, 0 };
-    offered_framework_ids[i] = false;
+    Framework& f = allFrameworks.add();
+    offered_framework_ids[f.id()] = false;
   }
 
-  unsigned int assigned_t_id = 0;
   string line;
   ifstream trace("task_times_converted.txt");
   if (trace.is_open()) {
@@ -189,11 +170,9 @@ void trace_workload() {
         max_job_id++;
       }
 
-      Task t;
+      Task& t = allTasks.add();
       t.slave_id = 0;  //Set simply as default
-      t.task_id = assigned_t_id;
       t.job_id = max_job_id;
-      assigned_t_id++;
 
       t.used_resources = { split_v[7], split_v[8], split_v[9] };
       t.being_run = false;
@@ -205,14 +184,14 @@ void trace_workload() {
         exit(EXIT_FAILURE);
       }
 
-      Framework *f = &allFrameworks[(int) split_v[4]];
+      Framework& f = allFrameworks[(int) split_v[4]];
 
       if (split_v[0] != last_j_id) {
         last_j_id = split_v[0];
-        job_vector_index = f->task_lists.size();
-        deque<Task> q;
-        q.push_back(t);
-        f->task_lists.push_back(q);
+        job_vector_index = f.task_lists.size();
+        deque<size_t> q;
+        q.push_back(t.id());
+        f.task_lists.push_back(q);
         jobs_to_tasks[t.job_id] = make_pair(1, t.start_time);
         jobs_to_num_tasks[t.job_id] = 1;
 
@@ -223,10 +202,10 @@ void trace_workload() {
         if (t.start_time < jobs_to_tasks[t.job_id].second)
           jobs_to_tasks[t.job_id].second = t.start_time;
         int i;
-        for (i = job_vector_index; i < f->task_lists.size(); i++) {
+        for (i = job_vector_index; i < f.task_lists.size(); i++) {
           bool has_intersection = false;
-          for (int j = 0; j < f->task_lists[i].size(); j++) {
-            Task cmp_task = f->task_lists[i][j];
+          for (int j = 0; j < f.task_lists[i].size(); j++) {
+            const Task& cmp_task = allTasks[f.task_lists[i][j]];
             has_intersection = intersect(
                 t.start_time, t.start_time + t.task_time, cmp_task.start_time,
                 cmp_task.start_time + cmp_task.task_time);
@@ -235,22 +214,23 @@ void trace_workload() {
           if (!has_intersection) {
             if (DEBUG) cout << "No intersections! " << line << endl;
             int j;
-            for (j = 0; j < f->task_lists[i].size(); j++) {
-              if (t.start_time + t.task_time < f->task_lists[i][j].start_time) {
-                f->task_lists[i].insert(f->task_lists[i].begin() + j, t);
+            for (j = 0; j < f.task_lists[i].size(); j++) {
+              if (t.start_time + t.task_time 
+                  < allTasks[f.task_lists[i][j]].start_time) {
+                f.task_lists[i].insert(f.task_lists[i].begin() + j, t.id());
                 break;
               }
             }
-            if (j == f->task_lists[i].size()) {
-              f->task_lists[i].push_back(t);
+            if (j == f.task_lists[i].size()) {
+              f.task_lists[i].push_back(t.id());
             }
             break;
           }
         }
-        if (i == f->task_lists.size()) {
-          deque<Task> q;
-          q.push_back(t);
-          f->task_lists.push_back(q);
+        if (i == f.task_lists.size()) {
+          deque<size_t> q;
+          q.push_back(t.id());
+          f.task_lists.push_back(q);
         }
       }
     }
@@ -262,12 +242,9 @@ int main(int argc, char *argv[]) {
 
   Clock = 0;
 
-  allSlaves = new Slave[num_slaves];
-  allFrameworks = new Framework[num_frameworks];
-
   // lets initialize slave state and the event queue
   for (int i = 0; i < num_slaves; i++) {
-    slave_id_to_index[allSlaves[i].id] = i;
+    allSlaves.add();
     total_resources += allSlaves[i].resources;
   }
 
@@ -281,8 +258,8 @@ int main(int argc, char *argv[]) {
     for (int j = 0; j < allFrameworks[i].task_lists.size(); j++) {
       if (allFrameworks[i].task_lists[j].size() > 1) {
         for (int k = 1; k < allFrameworks[i].task_lists[j].size(); k++) {
-          Task t1 = allFrameworks[i].task_lists[j][k - 1];
-          Task t2 = allFrameworks[i].task_lists[j][k];
+          const Task& t1 = allTasks[allFrameworks[i].task_lists[j][k - 1]];
+          const Task& t2 = allTasks[allFrameworks[i].task_lists[j][k]];
           if (t1.start_time + t1.task_time > t2.start_time) {
             cout << "ERROR: Spot check fail" << endl;
             exit(EXIT_FAILURE);
@@ -298,10 +275,10 @@ int main(int argc, char *argv[]) {
   FutureEventList.push(new OfferEvent(5637000000));
 
   if (DEBUG) {
-    for (int j = 0; j < num_slaves; j++) {
-      cout << "Slave " << (&allSlaves[j])->id
-           << " has total cpus: " << (&allSlaves[j])->resources.cpus
-           << " mem: " << (&allSlaves[j])->resources.mem << endl;
+    for (const auto& slave : allSlaves) {
+      cout << "Slave " << slave.id()
+           << " has total cpus: " << slave.resources.cpus
+           << " mem: " << slave.resources.mem << endl;
     }
   }
 
@@ -316,22 +293,6 @@ int main(int argc, char *argv[]) {
 
     evt->run();
     delete evt;
-    /*		for(int j = 0; j < num_slaves; j++) {
-    			if(DEBUG) cout << "Curr slave " << (&allSlaves[j])->id << " cpu: " <<
-    (&allSlaves[j])->free_resources.cpus << " mem: " <<
-    (&allSlaves[j])->free_resources.mem << endl;
-    		}
-    		for(int j = 0; j < num_frameworks; j++) {
-    			Framework f = allFrameworks[j];
-    			double cpu_share = f.current_used.cpus / total_cpus;
-    			double mem_share = f.current_used.mem / total_mem;
-    			double disk_share = f.current_used.disk / total_disk;
-    			double dominant_share = max(cpu_share, max(mem_share, disk_share));
-    			if(DEBUG) cout << "Framework " << (&allFrameworks[j])->id << " is using
-    cpus: " << (&allFrameworks[j])->current_used.cpus << " mem: " <<
-    (&allFrameworks[j])->current_used.mem << " Dominant share is " <<
-    dominant_share << endl;
-    		}*/
   }
 
   //METRICS: Completion time
@@ -351,7 +312,7 @@ void use_resources(Slave *s, Resources r) {
   s->free_resources -= r;
   total_resources += r;
   if (DEBUG)
-    cout << "Using Slave " << s->id << ": " << s->free_resources.cpus << " "
+    cout << "Using Slave " << s->id() << ": " << s->free_resources.cpus << " "
          << s->free_resources.mem << endl;
 }
 
@@ -359,7 +320,7 @@ void release_resources(Slave *s, Resources r) {
   s->free_resources += r; 
   used_resources -= r;
   if (DEBUG)
-    cout << "Freeing Slave " << s->id << ": " << s->free_resources.cpus << " "
+    cout << "Freeing Slave " << s->id() << ": " << s->free_resources.cpus << " "
          << s->free_resources.mem << endl;
 
 }
@@ -375,12 +336,12 @@ void round_robin() {
 void drf() {
   double max_share = 1.0;
   double next_id = 0;
-  for (int i = 0; i < num_frameworks; i++) {
+  for (int i = 0; i < allFrameworks.size(); i++) {
     if (!offered_framework_ids[i]) {
-      Framework *f = &allFrameworks[i];
-      double cpu_share = f->current_used.cpus / total_resources.cpus;
-      double mem_share = f->current_used.mem / total_resources.mem;
-      double disk_share = f->current_used.disk / total_resources.disk;
+      const Framework& f = allFrameworks[i];
+      double cpu_share = f.current_used.cpus / total_resources.cpus;
+      double mem_share = f.current_used.mem / total_resources.mem;
+      double disk_share = f.current_used.disk / total_resources.disk;
       double dominant_share = max(cpu_share, max(mem_share, disk_share));
       if (DEBUG)
         cout << "DRF computes dominant share for framework " << i << " is "
@@ -393,7 +354,6 @@ void drf() {
   }
   if (DEBUG) cout << "DRF is offering next to framework " << next_id << endl;
   curr_framework_offer = next_id;
-
 }
 
 void OfferEvent::run() {
@@ -406,41 +366,45 @@ void OfferEvent::run() {
   drf();
 #endif
 
-  Framework *f = &allFrameworks[curr_framework_offer];
+  Framework& f = allFrameworks[curr_framework_offer];
   if (DEBUG) cout << "Framework " << curr_framework_offer << endl;
   offered_framework_ids[curr_framework_offer] = true;
 
-  for (int i = 0; i < f->task_lists.size(); i++) {
-    if (f->task_lists[i].size() == 0 || f->task_lists[i][0].being_run ||
-        f->task_lists[i][0].start_time > this->get_time()) {
+  for (int i = 0; i < f.task_lists.size(); ++i) {
+    deque<size_t>& task_list = f.task_lists[i];
+    if (task_list.size() == 0 || allTasks[task_list[0]].being_run ||
+        allTasks[task_list[0]].start_time > this->get_time()) {
       if (DEBUG) cout << "No task to currently run in thread " << i << endl;
       continue;
     }
-    if (DEBUG)
-      cout << "Task id=" << f->task_lists[i][0].task_id << " : cpu "
-           << f->task_lists[i][0].used_resources.cpus << " mem "
-           << f->task_lists[i][0].used_resources.mem << " being_run "
-           << f->task_lists[i][0].being_run << endl;
-    for (int j = 0; j < num_slaves; j++) {
-      if (allSlaves[j].free_resources >= f->task_lists[i][0].used_resources) {
+
+    Task& todo_task = allTasks.get(task_list[0]);
+    if (DEBUG) {
+      cout << "Task id=" << task_list[0] << " : cpu "
+           << todo_task.used_resources.cpus << " mem "
+           << todo_task.used_resources.mem << " being_run "
+           << todo_task.being_run << endl;
+    }
+
+    for (Slave& slave : allSlaves) {
+      if (slave.free_resources >= todo_task.used_resources) {
         if (DEBUG) cout << "Should schedule" << endl;
-        Task todo_task = f->task_lists[i][0];
-        todo_task.slave_id = allSlaves[j].id;
-        use_resources(&allSlaves[j], todo_task.used_resources);
+        todo_task.slave_id = slave.id();
+        use_resources(&slave, todo_task.used_resources);
 
-        f->task_lists[i][0].being_run = true;
-        f->current_used += todo_task.used_resources;
+        todo_task.being_run = true;
+        f.current_used += todo_task.used_resources;
 
-        allSlaves[j].curr_tasks.push_back(todo_task);
+        slave.curr_tasks.insert(todo_task.id());
         FutureEventList.push(
             new FinishedTaskEvent(this->get_time() + todo_task.task_time,
-              todo_task.slave_id, curr_framework_offer, todo_task.task_id,
+              todo_task.slave_id, curr_framework_offer, todo_task.id(),
               todo_task.job_id));
 
         if (DEBUG) {
-          cout << "Slave scheduled: id=" << (&allSlaves[j])->id
-               << " cpu: " << (&allSlaves[j])->free_resources.cpus
-               << " mem: " << (&allSlaves[j])->free_resources.mem << endl;
+          cout << "Slave scheduled: id=" << slave.id()
+               << " cpu: " << slave.free_resources.cpus
+               << " mem: " << slave.free_resources.mem << endl;
         }
         break;
       }
@@ -471,29 +435,27 @@ void FinishedTaskEvent::run() {
   unsigned int t_id = this->_task_id;
   unsigned int f_id = this->_framework_id;
   unsigned int j_id = this->_job_id;
-  Slave *s = &allSlaves[slave_id_to_index[s_id]];
-  Framework *f = &allFrameworks[f_id];
 
-  int i = 0;
-  for (; i < s->curr_tasks.size(); i++) {
-    if (s->curr_tasks[i].task_id == t_id) {
-      if (DEBUG)
-        cout << "Time is " << Clock << " finished_task "
-             << s->curr_tasks[i].task_id << endl;
-      release_resources(s, s->curr_tasks[i].used_resources);
-      f->current_used -= s->curr_tasks[i].used_resources;
+  Slave& slave = allSlaves[s_id];
+  Framework& framework = allFrameworks[f_id];
+  Task& task = allTasks[t_id];
 
+  if (DEBUG) {
+    cout << "Time is " << Clock << " finished_task "
+         << t_id << endl;
+  }
+  release_resources(&slave, task.used_resources);
+  framework.current_used -= task.used_resources;
+  slave.curr_tasks.erase(t_id);
+
+  for (deque<size_t>& task_list : framework.task_lists) {
+    if (task_list.size() > 0 && task_list[0] == t_id) {
+      assert(allTasks[task_list[0]].being_run);
+      task_list.pop_front();
       break;
     }
   }
-  s->curr_tasks.erase(s->curr_tasks.begin() + i);
-  for (int j = 0; j < f->task_lists.size(); j++) {
-    if (f->task_lists[j].size() > 0 && f->task_lists[j][0].task_id == t_id) {
-      assert(f->task_lists[j][0].being_run);
-      f->task_lists[j].pop_front();
-      break;
-    }
-  }
+
   jobs_to_tasks[j_id].first -= 1;
   if (jobs_to_tasks[j_id].first == 0) {
     unsigned int start = jobs_to_tasks[j_id].second;
@@ -509,10 +471,9 @@ void run_auction(const Event &e) {
 
   // - free resources
   unordered_map<SlaveID, Resources> resources;
-  for (const auto &kv : slave_id_to_index) {
-    SlaveID slave_id = kv.first;
-    unsigned int index = kv.second;
-    resources[slave_id] = allSlaves[index].free_resources;
+  for (const Slave& slave : allSlaves) {
+    SlaveID slave_id = slave.id();
+    resources[slave_id] = slave.free_resources;
   }
   // - reservation prices
   Resources reservation_price(1, 1, 1);
