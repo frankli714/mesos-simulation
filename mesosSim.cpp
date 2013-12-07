@@ -321,6 +321,10 @@ void MesosSimulation::offer_resources(
 
         todo_task.being_run = true;
         f.current_used += todo_task.used_resources;
+	f.cpu_share = f.current_used.cpus / total_resources.cpus;
+    	f.mem_share = f.current_used.mem / total_resources.mem;
+    	f.disk_share = f.current_used.disk / total_resources.disk;
+    	f.dominant_share = max({f.cpu_share, f.mem_share, f.disk_share});
 
         slave.curr_tasks.insert(todo_task.id());
         this->add_event(
@@ -381,10 +385,7 @@ void OfferEvent::run_drf(MesosSimulation& sim) {
   double next_id = 0;
   for (const Framework& framework : sim.allFrameworks) {
     if (already_offered_framework[framework.id()]) continue;
-    double cpu_share = framework.current_used.cpus / sim.total_resources.cpus;
-    double mem_share = framework.current_used.mem / sim.total_resources.mem;
-    double disk_share = framework.current_used.disk / sim.total_resources.disk;
-    double dominant_share = max({cpu_share, mem_share, disk_share});
+    double dominant_share = framework.dominant_share;
     if (DEBUG) {
       cout << "DRF computes dominant share for framework " << framework.id() <<
         " is " << dominant_share << endl;
@@ -516,6 +517,11 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
   }
   sim.release_resources(slave.id(), task.used_resources);
   framework.current_used -= task.used_resources;
+  framework.cpu_share = framework.current_used.cpus / sim.total_resources.cpus;
+  framework.mem_share = framework.current_used.mem / sim.total_resources.mem;
+  framework.disk_share = framework.current_used.disk / sim.total_resources.disk;
+  framework.dominant_share = max({framework.cpu_share, framework.mem_share, framework.disk_share});
+
   slave.curr_tasks.erase(t_id);
 
   for (deque<size_t>& task_list : framework.task_lists) {

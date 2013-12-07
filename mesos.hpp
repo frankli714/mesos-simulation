@@ -31,12 +31,15 @@ class Slave : public Indexable {
 
 class Framework : public Indexable {
  public:
+	 Framework() : cpu_share(0), mem_share(0), disk_share(0), dominant_share(0) {}
 	 // Return a list of tasks which we can start running at the current time.
 	 std::vector<size_t> eligible_tasks(
 			 const Indexer<Task>& tasks, double current_time) const;
 
 	std::vector<std::deque<size_t>> task_lists;
-  Resources current_used;
+	Resources current_used;
+
+	double cpu_share, mem_share, disk_share, dominant_share;
 
 	// The "current" budget of this process.
 	double budget;
