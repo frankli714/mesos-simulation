@@ -88,7 +88,7 @@ class MesosSimulation : public Simulation<MesosSimulation> {
 };
 
 size_t MesosSimulation::round_robin_next_framework = 0;
-const int MesosSimulation::num_slaves = 2;
+const int MesosSimulation::num_slaves = 10;
 const int MesosSimulation::num_frameworks = 397;
 int MesosSimulation::max_job_id = 0;
 Resources MesosSimulation::total_resources;
@@ -134,12 +134,12 @@ void trace_workload(
    unordered_map<unsigned int, int>& jobs_to_num_tasks) {
 
   for (int i = 0; i < num_frameworks; i++) {
-    Framework& f = allFrameworks.add();
+    allFrameworks.add();
   }
 
   string line;
-  //ifstream trace("task_times_converted.txt");
-  ifstream trace("short_traces.txt");
+  ifstream trace("task_times_converted.txt");
+  //ifstream trace("short_traces.txt");
   if (trace.is_open()) {
     cout << " IN " << endl;
     int job_vector_index = 0;
@@ -377,9 +377,6 @@ void OfferEvent::run_round_robin(MesosSimulation& sim) {
 }
 
 void OfferEvent::run_drf(MesosSimulation& sim) {
-  auto& allFrameworks = sim.allFrameworks;
-  auto& allTasks = sim.allTasks;
-  auto& allSlaves = sim.allSlaves;
 
   double min_dominant_share = 1.0;
   double next_id = 0;
@@ -546,7 +543,7 @@ int main(int argc, char *argv[]) {
   sim.run();
 
   //METRICS: Completion time
-  unsigned int sum = 0;
+  //unsigned int sum = 0;
   cout << "#JOB COMPLETION TIMES" << endl;
   for (const auto& kv : sim.jobs_to_tasks) {
     cout << sim.jobs_to_num_tasks[kv.first] << " " << kv.second.second << endl;

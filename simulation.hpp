@@ -32,9 +32,8 @@ class Simulation {
   void run();
 
   double get_clock() const { return Clock; }
-  double get_remaining_tasks() const { return num_remaining_tasks; }
-  double set_remaining_tasks(int num_tasks) { num_remaining_tasks = num_tasks; }
-  double decrement_remaining_tasks() { num_remaining_tasks--; }
+  void set_remaining_tasks(int num_tasks) { num_remaining_tasks = num_tasks; }
+  void decrement_remaining_tasks() { num_remaining_tasks--; }
  private:
   double Clock;
   int num_remaining_tasks;
