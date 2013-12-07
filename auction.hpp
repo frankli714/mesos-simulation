@@ -3,6 +3,7 @@
 
 #include <unordered_map>
 #include <vector>
+#include <string>
 
 #include "shared.hpp"
 
@@ -28,8 +29,9 @@ class Auction {
       const unordered_map<FrameworkID, vector<vector<Bid>>>& _all_bids,
       const unordered_map<SlaveID, Resources>& _resources,
       const Resources& _reservation_price,
-      const double min_price_increase, 
-      const double price_multiplier);
+      const double _min_price_increase, 
+      const double _price_multiplier,
+      bool _log_events = true);
   
   void run();
 
@@ -51,6 +53,9 @@ class Auction {
 
   const double min_price_increase;
   const double price_multiplier;
+
+  bool log_events;
+  vector<string> log;
 };
 
 #endif  // __AUCTION_HPP__

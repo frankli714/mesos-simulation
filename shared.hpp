@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <string>
 #include <vector>
+#include <sstream>
 
 #define DEBUG 0
 
@@ -52,6 +53,14 @@ struct Resources {
 
   double sum() const {
     return cpus + mem + disk;
+  }
+
+  std::string tostring() const {
+    std::stringstream ss;
+    ss << "{cpus=" << cpus;
+    ss << ", mem=" << mem;
+    ss << ", disk=" << disk << "}";
+    return ss.str();
   }
 };
 
@@ -132,6 +141,21 @@ class Indexable {
  private:
   size_t _id;
 };
+
+template <typename T>
+std::string join(const std::vector<T>& elems, const char* delim) {
+  std::stringstream ss;
+  ss << elems[0];
+  for (int i = 1; i < elems.size(); ++i) {
+    ss << delim << elems[i];
+  }
+  return ss.str();
+}
+
+inline std::ostream& operator<<(std::ostream& o, const Resources& resources) {
+  o << resources.tostring();
+  return o;
+}
 
 // Split a string of doubles separated by delim into a vector<double>.
 std::vector<double> split(const std::string& str, char delim);
