@@ -8,10 +8,6 @@
 
 using namespace std;
 
-typedef unsigned int SlaveID;
-typedef unsigned int TaskID;
-typedef unsigned int FrameworkID;
-
 struct Bid {
   Bid() : winning(false), current_price(0.) {}
 

@@ -11,7 +11,7 @@ using namespace std;
 // TODO: revise this
 vector<size_t> Framework::eligible_tasks(
     const Indexer<Task>& tasks,
-    double current_time) {
+    double current_time) const {
   vector<size_t> result;
 
   for (const deque<size_t>& task_list : task_lists) {

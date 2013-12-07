@@ -22,9 +22,6 @@ using namespace std;
 // i have decided to go for a priority queue based simulation; the caveat is
 // that code cant be directly implemented;
 
-//#define RR
-#define DRF
-
 class MesosSimulation;
 
 class OfferEvent : public Event<MesosSimulation> {
@@ -34,6 +31,12 @@ class OfferEvent : public Event<MesosSimulation> {
 
   void run_drf(MesosSimulation& sim);
   void run_round_robin(MesosSimulation& sim);
+};
+
+class AuctionEvent : public Event<MesosSimulation> {
+ public:
+  AuctionEvent(double etime) : Event(etime) {}
+  virtual void run(MesosSimulation& sim);
 };
 
 class FinishedTaskEvent : public Event<MesosSimulation> {
@@ -387,6 +390,94 @@ void OfferEvent::run_drf(MesosSimulation& sim) {
   sim.offer_resources(next_id, sim.all_free_resources(), get_time());
 }
 
+void AuctionEvent::run(MesosSimulation& sim) {
+  // Collect:
+  // - free resources
+  unordered_map<size_t, Resources> free_resources = sim.all_free_resources();
+
+  // - bids
+  unordered_map<FrameworkID, vector<vector<Bid> > > all_bids;
+  for (const Framework& framework : sim.allFrameworks) {
+    vector<vector<Bid>>& bids = all_bids[framework.id()]; 
+    vector<size_t> tasks = framework.eligible_tasks(sim.allTasks, get_time());
+
+    for (size_t task_id : tasks) {
+      const Task& task = sim.allTasks.get(task_id);
+      vector<Bid> bids_for_task;
+      for (const auto& kv : free_resources) {
+        const Resources& slave_resources = kv.second;
+        if (slave_resources < task.used_resources) {
+          continue;
+        }
+
+        // TODO: reconsider whether we need all this information here
+        Bid bid;
+        bid.framework_id = framework.id();
+        bid.slave_id = kv.first;
+        bid.task_id = task.id();
+        bid.requested_resources = task.used_resources;
+
+        bid.wtp = 1.; // FIXME
+        bids_for_task.push_back(std::move(bid));
+      }
+      bids.push_back(std::move(bids_for_task));
+      // TODO: if the task fit none of the free resources on the slaves, then
+      // should we just give up (the current behavior)?
+    }
+  }
+
+  // - reservation prices
+  Resources reservation_price(1, 1, 1);
+  // - minimum price increase
+  double min_price_increase = 0.1;
+  // - price multiplier
+  double price_multiplier = 1.1;
+
+  // Run the auction
+  Auction auction(all_bids, free_resources, reservation_price,
+                  min_price_increase, price_multiplier);
+  auction.run();
+
+  // Get the results
+  const unordered_map<SlaveID, vector<Bid *> > &results = auction.results();
+
+  // Increment everyone's budget
+  for (Framework& framework : sim.allFrameworks) {
+    assert(get_time() >= framework.budget_time);
+    framework.budget +=
+      (get_time() - framework.budget_time) * framework.budget_increase_rate;
+  }
+
+  // Reorganize the results
+  //            framework id          slave id
+  //            v                     v
+  unordered_map<size_t, unordered_map<size_t, Resources>>
+    resources_per_framework_per_slave;
+  for (const auto& result : results) {
+    size_t slave_id = result.first;
+    const vector<Bid*>& winning_bids = result.second;
+
+    for (const Bid* bid : winning_bids) {
+      assert(slave_id == bid->slave_id);
+      resources_per_framework_per_slave[bid->framework_id][slave_id] +=
+        bid->requested_resources;
+      
+      Framework& framework = sim.allFrameworks.get(bid->framework_id);
+      framework.budget -= bid->current_price;
+    }
+  }
+
+  // Implement the results
+  for (const auto& kv : resources_per_framework_per_slave) {
+    size_t framework_id = kv.first;
+    const unordered_map<size_t, Resources>& resources_per_slave = kv.second;
+    sim.offer_resources(framework_id, resources_per_slave, get_time());
+  }
+
+  // Run auction again in 60(?) seconds
+  sim.add_event(new AuctionEvent(get_time() + 60000000));
+}
+
 void FinishedTaskEvent::run(MesosSimulation& sim) {
   auto& allFrameworks = sim.allFrameworks;
   auto& allTasks = sim.allTasks;
@@ -423,37 +514,6 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
     unsigned int start = jobs_to_tasks[j_id].second;
     jobs_to_tasks[j_id].second = this->get_time() - start;
   }
-}
-
-void run_auction(const Event<MesosSimulation> &e) {
-  // Collect:
-  // - bids
-  unordered_map<FrameworkID, vector<vector<Bid> > > all_bids;
-
-  // - free resources
-  unordered_map<SlaveID, Resources> resources;
-#if 0
-  for (const Slave& slave : allSlaves) {
-    SlaveID slave_id = slave.id();
-    resources[slave_id] = slave.free_resources;
-  }
-#endif
-  // - reservation prices
-  Resources reservation_price(1, 1, 1);
-  // - minimum price increase
-  double min_price_increase = 0.1;
-  // - price multiplier
-  double price_multiplier = 1.1;
-
-  // Run the auction
-  Auction auction(all_bids, resources, reservation_price, min_price_increase,
-                  price_multiplier);
-  auction.run();
-
-  // Get the results
-  const unordered_map<SlaveID, vector<Bid *> > &results = auction.results();
-
-  // Implement the results
 }
 
 int main(int argc, char *argv[]) {

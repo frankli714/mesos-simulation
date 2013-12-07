@@ -145,11 +145,11 @@ double bids_from_tasks(unordered_map<SlaveID, Resources> free,
         if (task->being_run) break;
         task_bids = new Vector<Bid*>
         for (auto slave_resources in free){
-            if (r < slave_resources.second){
+            if (r <= slave_resources.second){
                 Bid b;
-                b.requested_resources = r;
+                b.requested_resources = t.needed_resources;
                 b.slave_id = slave_resources.first;
-                b.wtp = sqrt( low*low + budget * (high - low) )
+                b.wtp = sqrt( low*low + RATE * budget * (high - low) )
                 task_bids.push_back(b)
             }
         }

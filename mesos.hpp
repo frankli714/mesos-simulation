@@ -3,6 +3,9 @@
 // Defines classes representing components in Mesos (master, slaves, frameworks,
 // tasks, etc.)
 
+#include <vector>
+#include <unordered_set>
+
 #include "shared.hpp"
 
 #include <deque>
@@ -30,10 +33,17 @@ class Framework : public Indexable {
  public:
 	 // Return a list of tasks which we can start running at the current time.
 	 std::vector<size_t> eligible_tasks(
-			 const Indexer<Task>& tasks, double current_time);
+			 const Indexer<Task>& tasks, double current_time) const;
 
 	std::vector<std::deque<size_t>> task_lists;
   Resources current_used;
+
+	// The "current" budget of this process.
+	double budget;
+	// Time at which the budget was valid.
+	double budget_time;
+	// Amount of budget the framework receives per unit time.
+	double budget_increase_rate;
 };
 
 #endif

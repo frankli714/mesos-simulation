@@ -7,9 +7,12 @@
 
 #define DEBUG 0
 
-typedef unsigned int SlaveID;
-typedef unsigned int TaskID;
-typedef unsigned int FrameworkID;
+//#define RR
+#define DRF
+
+typedef size_t SlaveID;
+typedef size_t TaskID;
+typedef size_t FrameworkID;
 
 struct Resources {
 	double cpus;
