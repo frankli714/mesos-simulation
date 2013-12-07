@@ -75,9 +75,9 @@ class MesosSimulation : public Simulation<MesosSimulation> {
   Indexer<Framework> allFrameworks;
   Indexer<Task> allTasks;
 
-  size_t round_robin_next_framework = 0;
+  static size_t round_robin_next_framework;
 
-  unordered_map<unsigned int, pair<int, unsigned int> > jobs_to_tasks;
+  unordered_map<unsigned int, pair<int, double> > jobs_to_tasks;
   unordered_map<unsigned int, int> jobs_to_num_tasks;
 
   static const int num_slaves;
@@ -87,7 +87,8 @@ class MesosSimulation : public Simulation<MesosSimulation> {
   static Resources total_resources, used_resources;
 };
 
-const int MesosSimulation::num_slaves = 10;
+size_t MesosSimulation::round_robin_next_framework = 0;
+const int MesosSimulation::num_slaves = 2;
 const int MesosSimulation::num_frameworks = 397;
 int MesosSimulation::max_job_id = 0;
 Resources MesosSimulation::total_resources;
@@ -129,7 +130,7 @@ void trace_workload(
    int& max_job_id,
    Indexer<Framework>& allFrameworks,
    Indexer<Task>& allTasks,
-   unordered_map<unsigned int, pair<int, unsigned int>>& jobs_to_tasks,
+   unordered_map<unsigned int, pair<int, double>>& jobs_to_tasks,
    unordered_map<unsigned int, int>& jobs_to_num_tasks) {
 
   for (int i = 0; i < num_frameworks; i++) {
@@ -249,7 +250,6 @@ MesosSimulation::MesosSimulation() {
     }
   }
   cout << "DONE " << sum_size << endl;
-
   add_event(new OfferEvent(5637000000));
 
   if (DEBUG) {
@@ -264,7 +264,7 @@ MesosSimulation::MesosSimulation() {
 void MesosSimulation::use_resources(
     size_t slave, const Resources& resources) {
   allSlaves[slave].free_resources -= resources;
-  total_resources += resources;
+  used_resources += resources;
   if (DEBUG)
     cout << "Using Slave " << slave << ": " 
       << allSlaves[slave].free_resources.cpus << " " 
@@ -274,7 +274,7 @@ void MesosSimulation::use_resources(
 void MesosSimulation::release_resources(
     size_t slave, const Resources& resources) {
   allSlaves[slave].free_resources += resources;
-  total_resources -= resources;
+  used_resources -= resources;
   if (DEBUG)
     cout << "Using Slave " << slave << ": " 
       << allSlaves[slave].free_resources.cpus << " " 
@@ -337,6 +337,10 @@ void MesosSimulation::offer_resources(
   }
 }
 
+unordered_map<double, bool> already_offered_framework;
+int number_offer_this_round = 0;
+int last_offer_number = 0;
+
 void OfferEvent::run(MesosSimulation& sim) {
   if (DEBUG) cout << "Time is " << sim.get_clock() << " process_offer function" << endl;
 
@@ -345,9 +349,12 @@ void OfferEvent::run(MesosSimulation& sim) {
 #elif defined DRF
   run_drf(sim);
 #endif
-
-  // Offer again in 60(?) seconds
-  sim.add_event(new OfferEvent(this->get_time() + 60000000));
+  if( number_offer_this_round < last_offer_number) {
+	
+  }
+  last_offer_number = number_offer_this_round;
+  // Offer again in 1 second
+  sim.add_event(new OfferEvent(this->get_time() + 10000000));
 
   //cout << "Offers made at time " << << endl;
   //Log utilization
@@ -371,6 +378,7 @@ void OfferEvent::run_drf(MesosSimulation& sim) {
   double min_dominant_share = 1.0;
   double next_id = 0;
   for (const Framework& framework : sim.allFrameworks) {
+    if (already_offered_framework[framework.id()]) continue;
     double cpu_share = framework.current_used.cpus / sim.total_resources.cpus;
     double mem_share = framework.current_used.mem / sim.total_resources.mem;
     double disk_share = framework.current_used.disk / sim.total_resources.disk;
@@ -379,13 +387,20 @@ void OfferEvent::run_drf(MesosSimulation& sim) {
       cout << "DRF computes dominant share for framework " << framework.id() <<
         " is " << dominant_share << endl;
     }
-    if (dominant_share < min_dominant_share) {
+    if (dominant_share <= min_dominant_share && framework.task_lists.size() > 0) {
       min_dominant_share = dominant_share;
       next_id = framework.id();
     }
   }
   if (DEBUG) cout << "DRF is offering next to framework " << next_id << endl;
-
+  already_offered_framework[next_id] = true;
+  number_offer_this_round++;
+  
+  if (number_offer_this_round == already_offered_framework.size()) 
+  {
+    number_offer_this_round = 0;
+    already_offered_framework.clear();
+  }
   // Offer everything to the most dominant-resource-starved framework
   sim.offer_resources(next_id, sim.all_free_resources(), get_time());
 }
@@ -511,7 +526,7 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
 
   jobs_to_tasks[j_id].first -= 1;
   if (jobs_to_tasks[j_id].first == 0) {
-    unsigned int start = jobs_to_tasks[j_id].second;
+    double start = jobs_to_tasks[j_id].second;
     jobs_to_tasks[j_id].second = this->get_time() - start;
   }
 }
@@ -519,7 +534,6 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
 int main(int argc, char *argv[]) {
   MesosSimulation sim;
   sim.run(2506181000000);
-
   //METRICS: Completion time
   unsigned int sum = 0;
   cout << "#JOB COMPLETION TIMES" << endl;
