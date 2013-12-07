@@ -112,7 +112,7 @@ class Indexer {
   T& add(Args&&... args) {
     objects.emplace_back(args...);
     T& added = objects.back();
-    added.set_id(objects.size());
+    added.set_id(objects.size()-1);
     return added;
   }
 
