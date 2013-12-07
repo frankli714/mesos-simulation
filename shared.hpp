@@ -104,17 +104,13 @@ class Indexer {
     return added;
   }
 
-  void reserve(size_t n) {
-    objects.reserve(n);
-  }
+  void reserve(size_t n) { objects.reserve(n); }
 
-  T& get(size_t id) {
-    return objects[id];
-  }
+  T& get(size_t id) { return objects[id]; }
+  const T& get(size_t id) const { return objects[id]; }
 
-  T& operator[](size_t id) {
-    return objects[id];
-  }
+  T& operator[](size_t id) { return objects[id]; }
+  const T& operator[](size_t id) const { return objects[id]; }
 
   size_t size() const { return objects.size(); }
   typename std::vector<T>::iterator begin() { return objects.begin(); }

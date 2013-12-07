@@ -294,17 +294,11 @@ void MesosSimulation::offer_resources(
   Framework& f = allFrameworks[framework_id];
   if (DEBUG) cout << "Framework " << framework_id << endl;
 
-  for (int i = 0; i < f.task_lists.size(); ++i) {
-    deque<size_t>& task_list = f.task_lists[i];
-    if (task_list.size() == 0 || allTasks[task_list[0]].being_run ||
-        allTasks[task_list[0]].start_time > now) {
-      if (DEBUG) cout << "No task to currently run in thread " << i << endl;
-      continue;
-    }
-
-    Task& todo_task = allTasks.get(task_list[0]);
+  vector<size_t> eligible_tasks = f.eligible_tasks(allTasks, now);
+  for (size_t task_id : eligible_tasks) {
+    Task& todo_task = allTasks.get(task_id);
     if (DEBUG) {
-      cout << "Task id=" << task_list[0] << " : cpu "
+      cout << "Task id=" << task_id << " : cpu "
            << todo_task.used_resources.cpus << " mem "
            << todo_task.used_resources.mem << " being_run "
            << todo_task.being_run << endl;
