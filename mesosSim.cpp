@@ -138,7 +138,8 @@ void trace_workload(
   }
 
   string line;
-  ifstream trace("task_times_converted.txt");
+  //ifstream trace("task_times_converted.txt");
+  ifstream trace("short_traces.txt");
   if (trace.is_open()) {
     cout << " IN " << endl;
     int job_vector_index = 0;
@@ -230,6 +231,7 @@ MesosSimulation::MesosSimulation() {
   //rand_workload(num_frameworks, 2, 2, allFrameworks, allTasks);
   trace_workload(num_frameworks, max_job_id, allFrameworks, allTasks, jobs_to_tasks, jobs_to_num_tasks);
   cout << "Done generating workload" << endl;
+  set_remaining_tasks(allTasks.size());
 
   //Spot check
   int sum_size = 0;
@@ -524,6 +526,8 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
     }
   }
 
+  sim.decrement_remaining_tasks();
+
   jobs_to_tasks[j_id].first -= 1;
   if (jobs_to_tasks[j_id].first == 0) {
     double start = jobs_to_tasks[j_id].second;
@@ -533,7 +537,8 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
 
 int main(int argc, char *argv[]) {
   MesosSimulation sim;
-  sim.run(2506181000000);
+  sim.run();
+
   //METRICS: Completion time
   unsigned int sum = 0;
   cout << "#JOB COMPLETION TIMES" << endl;

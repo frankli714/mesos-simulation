@@ -29,12 +29,15 @@ template <typename T>
 class Simulation {
  public:
   void add_event(Event<T>* e);
-  void run(double time_limit);
+  void run();
 
   double get_clock() const { return Clock; }
-
+  double get_remaining_tasks() const { return num_remaining_tasks; }
+  double set_remaining_tasks(int num_tasks) { num_remaining_tasks = num_tasks; }
+  double decrement_remaining_tasks() { num_remaining_tasks--; }
  private:
   double Clock;
+  int num_remaining_tasks;
   priority_queue<Event<T>*, vector<Event<T>*>, pless<Event<T>>> FutureEventList;
 };
 
@@ -44,7 +47,7 @@ void Simulation<T>::add_event(Event<T>* e) {
 }
 
 template <typename T>
-void Simulation<T>::run(double time_limit) {
+void Simulation<T>::run() {
   while (!FutureEventList.empty()) {
     if (DEBUG) cout << endl;
 
@@ -52,10 +55,10 @@ void Simulation<T>::run(double time_limit) {
     FutureEventList.pop();
     Clock = evt->get_time();
 
-    if (Clock > time_limit) break;
-
     evt->run(*static_cast<T*>(this));
     delete evt;
+
+    if (num_remaining_tasks == 0) break;
   }
 }
 
