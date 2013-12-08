@@ -13,8 +13,18 @@
 
 using namespace std;
 
-// FIXME
-int num_frameworks = 0;
+inline std::ostream& operator<<(std::ostream& o, const Bid* bid) {
+  o << "{wtp=" << bid->wtp 
+    << ", time=" << bid->time
+    << ", fid=" << bid->framework_id
+    << ", sid=" << bid->slave_id 
+    << ", tid=" << bid->task_id
+    << ", res=" << bid->requested_resources
+    << ", win=" << bid->winning
+    << ", crp=" << bid->current_price
+    << "}";
+  return o;
+}
 
 Auction::Auction(
     const unordered_map<FrameworkID, vector<vector<Bid> > >& _all_bids,
@@ -30,16 +40,18 @@ Auction::Auction(
 
 bool Auction::displace(const Bid& new_bid, vector<Bid*>& displaced_bids,
                        double& total_cost) {
+  // Start with setting the reservation price.
+  total_cost = (new_bid.requested_resources * reservation_price).sum();
+
   // Compute how much more resources we need to accomodate the new bid.
   SlaveID slave_id = new_bid.slave_id;
   Resources needed_resources =
-      free_resources_per_slave[slave_id].missing(new_bid.requested_resources);
+      resources[slave_id].missing(new_bid.requested_resources);
   if (needed_resources.zero()) return true;
 
   // Sum together the cheapest existing bids on the machine to kick out until we
   // can accomodate the new bid.
   const vector<Bid*>& bids = winning_bids_per_slave[slave_id];
-  total_cost = (new_bid.requested_resources * reservation_price).sum();
   Resources freed_resources;
   for (const auto& bid : bids) {
     // Pass over your own bids.
@@ -66,8 +78,7 @@ void Auction::run() {
     ss << "Starting auction with " << reservation_price
        << " reservation price, " << min_price_increase
        << " min price increase, " << price_multiplier << " price multiplier.";
-    log.push_back(ss.str());
-    ss.str(string());
+    log.push_back(ss.str()); ss.str(string());
 
     log.push_back("Available resources:");
     vector<SlaveID> slaves;
@@ -77,16 +88,20 @@ void Auction::run() {
     sort(slaves.begin(), slaves.end());
     for (const SlaveID& slave_id : slaves) {
       ss << "  slave " << slave_id << ": " << resources[slave_id];
-      log.push_back(ss.str());
+      log.push_back(ss.str()); ss.str(string());
     }
 
     for (const auto& kv : all_bids) {
       FrameworkID framework_id = kv.first;
-      ss << "Framework " << framework_id << "'s bids:";
-      log.push_back(ss.str());
-      ss.str(string());
+      if (kv.second.size()) {
+        ss << "Framework " << framework_id << "'s bids:";
+        log.push_back(ss.str()); ss.str(string());
+      }
 
-      for (const vector<Bid>& bids : kv.second) {
+      for (int i = 0; i < kv.second.size(); ++i) {
+        const vector<Bid>& bids = kv.second[i];
+        if (bids.empty()) continue;
+
         vector<double> wtps;
         vector<Resources> resources;
         vector<SlaveID> slave_ids;
@@ -95,10 +110,10 @@ void Auction::run() {
           resources.push_back(bid.requested_resources);
           slave_ids.push_back(bid.slave_id);
         }
-        ss << "  wtp=[" << join(wtps, ", ") << "], ";
-        ss << "resources=[" << join(resources, ", ") << "], ";
-        ss << "slaves=[" << join(slaves, ", ") << "]";
-        log.push_back(ss.str());
+        ss << "  " << i << ". wtp=[" << join(wtps, ", ") << "], " 
+           << "resources=[" << join(resources, ", ") << "], " 
+           << "slaves=[" << join(slaves, ", ") << "]";
+        log.push_back(ss.str()); ss.str(string());
       }
     }
   }
@@ -119,13 +134,28 @@ void Auction::run() {
       // - loop over vector of vector of Bids
       // - for each vector of Bids which doesn't have any which are winning,
       //   find the cheapest one
+      
+      if (log_events && !all_bids[framework].empty()) {
+        stringstream ss;
+        ss << "Framework " << framework << "'s turn:";
+        log.push_back(ss.str());
+      }
+      
+      for (int i = 0; i < all_bids[framework].size(); ++i) {
+        auto& bids = all_bids[framework][i];
 
-      for (auto& bids : all_bids[framework]) {
           // Determine if any of these are winning
         bool winning = any_of(bids.begin(), bids.end(), [](const Bid & bid) {
           return bid.winning;
         });
-        if (winning) break;
+        if (winning) {
+          if (log_events) {
+            stringstream ss;
+            ss << "  " << i << ". already winning";
+            log.push_back(ss.str()); 
+          }
+          break;
+        }
 
         // Since none are winning, find the cheapest way to make one of them
         // win (cheapest = greatest difference between wtp and current_price)
@@ -133,7 +163,11 @@ void Auction::run() {
         Bid* best_bid;
         vector<Bid*> best_displaced_bids;
         bool found_profitable = false;
-        for (auto& bid : bids) {
+        int best_bid_index;
+
+        for (int j = 0; j < bids.size(); ++j) {
+          auto& bid = bids[j];
+
           vector<Bid*> displaced_bids;
           double total_cost;
           bool success = displace(bid, displaced_bids, total_cost);
@@ -146,11 +180,19 @@ void Auction::run() {
             best_profit = profit;
             best_displaced_bids.swap(displaced_bids);
             found_profitable = true;
+            best_bid_index = j;
           }
         }
 
         // If cheapest way is not profitable, then give up
-        if (!found_profitable) break;
+        if (!found_profitable) {
+          if (log_events) {
+            stringstream ss;
+            ss << "  " << i << ". found no profitable way";
+            log.push_back(ss.str());
+          }
+          continue;
+        }
 
         updated = true;
         // Evict the bids which will be displaced by this new winning bid
@@ -163,6 +205,17 @@ void Auction::run() {
               break;
             }
           }
+        }
+
+        if (log_events) {
+          stringstream ss;
+          ss << "  " << i << ". "
+             << "displaced with bid " << best_bid_index
+             << ", slave " << best_bid->slave_id
+             << ", price " << best_bid->current_price
+             << " -> " << best_bid->wtp - best_profit
+             << ", displaced [" << join(best_displaced_bids, ", ") << "]";
+          log.push_back(ss.str());
         }
 
         // Set the current price of the new bid

@@ -36,6 +36,8 @@ class Auction {
     return winning_bids_per_slave;
   }
 
+  const vector<string>& get_log() { return log; }
+
  private:
   bool displace(const Bid& new_bid, vector<Bid*>& displaced_bids,
                 double& total_cost);
@@ -45,7 +47,6 @@ class Auction {
   Resources reservation_price;
 
   unordered_map<SlaveID, vector<Bid*>> winning_bids_per_slave;
-  unordered_map<SlaveID, Resources> free_resources_per_slave;
 
   const double min_price_increase;
   const double price_multiplier;

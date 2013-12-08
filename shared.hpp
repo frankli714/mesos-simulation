@@ -143,6 +143,9 @@ class Indexable {
 
 template <typename T>
 std::string join(const std::vector<T>& elems, const char* delim) {
+  if (elems.empty()) 
+    return "";
+
   std::stringstream ss;
   ss << elems[0];
   for (int i = 1; i < elems.size(); ++i) {

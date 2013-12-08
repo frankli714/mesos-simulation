@@ -127,7 +127,10 @@ void trace_workload(
     unordered_map<unsigned int, int>& jobs_to_num_tasks) {
 
   for (int i = 0; i < num_frameworks; i++) {
-    allFrameworks.add();
+    Framework& framework = allFrameworks.add();
+    framework.budget = 100;
+    framework.budget_time = 5637000000;
+    framework.budget_increase_rate = 100;
   }
 
   string line;
@@ -301,16 +304,16 @@ void MesosSimulation::offer_resources(
            << todo_task.being_run << endl;
     }
 
-    for (const auto& kv : resources) {
+    for (auto& kv : resources) {
       const size_t slave_id = kv.first;
-      const Resources slave_resources = kv.second;
+      Resources& slave_resources = kv.second;
       Slave& slave = allSlaves.get(slave_id);
 
       if (slave_resources >= todo_task.used_resources) {
         if (DEBUG) cout << "Should schedule" << endl;
         todo_task.slave_id = slave_id;
         this->use_resources(slave_id, todo_task.used_resources);
-        resources[slave_id] -= todo_task.used_resources;
+        slave_resources -= todo_task.used_resources;
 
         //assert(slave.free_resources >= {0,0,0});
 
@@ -404,6 +407,13 @@ void OfferEvent::run_drf(MesosSimulation& sim) {
 }
 
 void AuctionEvent::run(MesosSimulation& sim) {
+  // Increment everyone's budget
+  for (Framework& framework : sim.allFrameworks) {
+    assert(get_time() >= framework.budget_time);
+    framework.budget +=
+        (get_time() - framework.budget_time) * framework.budget_increase_rate;
+  }
+
   // Collect:
   // - free resources
   unordered_map<size_t, Resources> free_resources = sim.all_free_resources();
@@ -430,7 +440,7 @@ void AuctionEvent::run(MesosSimulation& sim) {
         bid.task_id = task.id();
         bid.requested_resources = task.used_resources;
 
-        bid.wtp = 1.;  // FIXME
+        bid.wtp = framework.budget / 10;  // FIXME
         bids_for_task.push_back(std::move(bid));
       }
       bids.push_back(std::move(bids_for_task));
@@ -440,26 +450,19 @@ void AuctionEvent::run(MesosSimulation& sim) {
   }
 
   // - reservation prices
-  Resources reservation_price(1, 1, 1);
+  Resources reservation_price(10, 10, 10);
   // - minimum price increase
-  double min_price_increase = 0.1;
+  double min_price_increase = 1;
   // - price multiplier
   double price_multiplier = 1.1;
 
   // Run the auction
   Auction auction(all_bids, free_resources, reservation_price,
-                  min_price_increase, price_multiplier);
+                  min_price_increase, price_multiplier, true);
   auction.run();
 
   // Get the results
   const unordered_map<SlaveID, vector<Bid*>>& results = auction.results();
-
-  // Increment everyone's budget
-  for (Framework& framework : sim.allFrameworks) {
-    assert(get_time() >= framework.budget_time);
-    framework.budget +=
-        (get_time() - framework.budget_time) * framework.budget_increase_rate;
-  }
 
   // Reorganize the results
   //            framework id          slave id
@@ -480,6 +483,11 @@ void AuctionEvent::run(MesosSimulation& sim) {
     }
   }
 
+  // Print log
+  for (const string& line : auction.get_log()) {
+    cerr << line << endl;
+  }
+
   // Implement the results
   for (const auto& kv : resources_per_framework_per_slave) {
     size_t framework_id = kv.first;
@@ -487,8 +495,11 @@ void AuctionEvent::run(MesosSimulation& sim) {
     sim.offer_resources(framework_id, resources_per_slave, get_time());
   }
 
-  // Run auction again in 60(?) seconds
-  sim.add_event(new AuctionEvent(get_time() + 60000000));
+  // Run auction again in 1 second
+  sim.add_event(new AuctionEvent(get_time() + 1000000));
+
+  cerr << "Press Enter to continue..." << endl;
+  cin.get();
 }
 
 void FinishedTaskEvent::run(MesosSimulation& sim) {
