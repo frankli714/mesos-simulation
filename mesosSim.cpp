@@ -87,7 +87,7 @@ class MesosSimulation : public Simulation<MesosSimulation> {
 };
 
 size_t MesosSimulation::round_robin_next_framework = 0;
-const int MesosSimulation::num_slaves = 2000;
+const int MesosSimulation::num_slaves = 500;
 const int MesosSimulation::num_frameworks = 397;
 int MesosSimulation::max_job_id = 0;
 Resources MesosSimulation::total_resources;
@@ -263,6 +263,7 @@ MesosSimulation::MesosSimulation() {
 void MesosSimulation::use_resources(size_t slave, const Resources& resources) {
   allSlaves[slave].free_resources -= resources;
   used_resources += resources;
+  assert(used_resources <= total_resources);
   if (DEBUG)
     cout << "Using Slave " << slave << ": "
          << allSlaves[slave].free_resources.cpus << " "
@@ -273,6 +274,12 @@ void MesosSimulation::release_resources(size_t slave,
                                         const Resources& resources) {
   allSlaves[slave].free_resources += resources;
   used_resources -= resources;
+  Resources zero = {0,0,0};
+  if(used_resources < zero){
+    Resources small_neg = {-1*pow(10,-10),-1*pow(10,-10),-1*pow(10,-10)};
+    assert(used_resources > small_neg);
+    used_resources = zero;
+  }
   if (DEBUG)
     cout << "Using Slave " << slave << ": "
          << allSlaves[slave].free_resources.cpus << " "
@@ -315,7 +322,8 @@ void MesosSimulation::offer_resources(
         this->use_resources(slave_id, todo_task.used_resources);
         slave_resources -= todo_task.used_resources;
 
-        //assert(slave.free_resources >= {0,0,0});
+	Resources zero = {0,0,0};
+        assert(slave.free_resources >= zero);
 
         todo_task.being_run = true;
         f.current_used += todo_task.used_resources;
