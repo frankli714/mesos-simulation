@@ -68,7 +68,7 @@ class MesosSimulation : public Simulation<MesosSimulation> {
   unordered_map<size_t, Resources> all_free_resources() const;
   void offer_resources(
       size_t framework_id,
-      const unordered_map<size_t, Resources>& resources,
+      unordered_map<size_t, Resources> resources,
       double now);
 
   Indexer<Slave> allSlaves;
@@ -88,7 +88,7 @@ class MesosSimulation : public Simulation<MesosSimulation> {
 };
 
 size_t MesosSimulation::round_robin_next_framework = 0;
-const int MesosSimulation::num_slaves = 10;
+const int MesosSimulation::num_slaves = 2000;
 const int MesosSimulation::num_frameworks = 397;
 int MesosSimulation::max_job_id = 0;
 Resources MesosSimulation::total_resources;
@@ -293,7 +293,7 @@ unordered_map<size_t, Resources> MesosSimulation::all_free_resources() const {
 
 void MesosSimulation::offer_resources(
     size_t framework_id, 
-    const unordered_map<size_t, Resources>& resources,
+    unordered_map<size_t, Resources> resources,
     double now) {
 
   Framework& f = allFrameworks[framework_id];
@@ -318,6 +318,9 @@ void MesosSimulation::offer_resources(
         if (DEBUG) cout << "Should schedule" << endl;
         todo_task.slave_id = slave_id;
         this->use_resources(slave_id, todo_task.used_resources);
+        resources[slave_id] -= todo_task.used_resources;
+
+	//assert(slave.free_resources >= {0,0,0});
 
         todo_task.being_run = true;
         f.current_used += todo_task.used_resources;
