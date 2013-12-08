@@ -25,14 +25,11 @@ struct Bid {
 
 class Auction {
  public:
-  Auction(
-      const unordered_map<FrameworkID, vector<vector<Bid>>>& _all_bids,
-      const unordered_map<SlaveID, Resources>& _resources,
-      const Resources& _reservation_price,
-      const double _min_price_increase, 
-      const double _price_multiplier,
-      bool _log_events = true);
-  
+  Auction(const unordered_map<FrameworkID, vector<vector<Bid>>>& _all_bids,
+          const unordered_map<SlaveID, Resources>& _resources,
+          const Resources& _reservation_price, const double _min_price_increase,
+          const double _price_multiplier, bool _log_events = true);
+
   void run();
 
   const unordered_map<SlaveID, vector<Bid*>>& results() const {
@@ -40,8 +37,7 @@ class Auction {
   }
 
  private:
-  bool displace(const Bid& new_bid,
-                vector<Bid*>& displaced_bids,
+  bool displace(const Bid& new_bid, vector<Bid*>& displaced_bids,
                 double& total_cost);
 
   unordered_map<FrameworkID, vector<vector<Bid>>> all_bids;
@@ -59,3 +55,4 @@ class Auction {
 };
 
 #endif  // __AUCTION_HPP__
+/* vim: set ts=2 sts=2 sw=2 tw=80 expandtab */

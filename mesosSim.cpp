@@ -51,6 +51,7 @@ class FinishedTaskEvent : public Event<MesosSimulation> {
         _job_id(job_id) {}
 
   virtual void run(MesosSimulation& sim);
+
  private:
   unsigned int _slave_id;
   unsigned int _framework_id;
@@ -66,10 +67,8 @@ class MesosSimulation : public Simulation<MesosSimulation> {
   void release_resources(size_t slave, const Resources& resources);
 
   unordered_map<size_t, Resources> all_free_resources() const;
-  void offer_resources(
-      size_t framework_id,
-      unordered_map<size_t, Resources> resources,
-      double now);
+  void offer_resources(size_t framework_id,
+                       unordered_map<size_t, Resources> resources, double now);
 
   Indexer<Slave> allSlaves;
   Indexer<Framework> allFrameworks;
@@ -77,7 +76,7 @@ class MesosSimulation : public Simulation<MesosSimulation> {
 
   static size_t round_robin_next_framework;
 
-  unordered_map<unsigned int, pair<int, double> > jobs_to_tasks;
+  unordered_map<unsigned int, pair<int, double>> jobs_to_tasks;
   unordered_map<unsigned int, int> jobs_to_num_tasks;
 
   static const int num_slaves;
@@ -95,18 +94,14 @@ Resources MesosSimulation::total_resources;
 Resources MesosSimulation::used_resources;
 
 // Functions handling events
-void run_auction(const Event<MesosSimulation> &e);
+void run_auction(const Event<MesosSimulation>& e);
 
-void rand_workload(
-   int num_frameworks,
-   int num_jobs,
-   int num_tasks_per_job,
-   Indexer<Framework>& allFrameworks,
-   Indexer<Task>& allTasks) {
+void rand_workload(int num_frameworks, int num_jobs, int num_tasks_per_job,
+                   Indexer<Framework>& allFrameworks, Indexer<Task>& allTasks) {
   // This simply generates random tasks for debugging purposes
   srand(0);
   for (int i = 0; i < num_frameworks; i++) {
-    Framework& framework = allFrameworks.add(); 
+    Framework& framework = allFrameworks.add();
     for (int j = 0; j < num_jobs; j++) {
       deque<size_t> q;
       for (int k = 0; k < num_tasks_per_job; k++) {
@@ -126,12 +121,10 @@ void rand_workload(
 }
 
 void trace_workload(
-   int num_frameworks,
-   int& max_job_id,
-   Indexer<Framework>& allFrameworks,
-   Indexer<Task>& allTasks,
-   unordered_map<unsigned int, pair<int, double>>& jobs_to_tasks,
-   unordered_map<unsigned int, int>& jobs_to_num_tasks) {
+    int num_frameworks, int& max_job_id, Indexer<Framework>& allFrameworks,
+    Indexer<Task>& allTasks,
+    unordered_map<unsigned int, pair<int, double>>& jobs_to_tasks,
+    unordered_map<unsigned int, int>& jobs_to_num_tasks) {
 
   for (int i = 0; i < num_frameworks; i++) {
     allFrameworks.add();
@@ -198,8 +191,8 @@ void trace_workload(
             if (DEBUG) cout << "No intersections! " << line << endl;
             int j;
             for (j = 0; j < f.task_lists[i].size(); j++) {
-              if (t.start_time + t.task_time 
-                  < allTasks[f.task_lists[i][j]].start_time) {
+              if (t.start_time + t.task_time <
+                  allTasks[f.task_lists[i][j]].start_time) {
                 f.task_lists[i].insert(f.task_lists[i].begin() + j, t.id());
                 break;
               }
@@ -229,7 +222,8 @@ MesosSimulation::MesosSimulation() {
   }
 
   //rand_workload(num_frameworks, 2, 2, allFrameworks, allTasks);
-  trace_workload(num_frameworks, max_job_id, allFrameworks, allTasks, jobs_to_tasks, jobs_to_num_tasks);
+  trace_workload(num_frameworks, max_job_id, allFrameworks, allTasks,
+                 jobs_to_tasks, jobs_to_num_tasks);
   cout << "Done generating workload" << endl;
   set_remaining_tasks(allTasks.size());
 
@@ -263,24 +257,23 @@ MesosSimulation::MesosSimulation() {
   }
 }
 
-void MesosSimulation::use_resources(
-    size_t slave, const Resources& resources) {
+void MesosSimulation::use_resources(size_t slave, const Resources& resources) {
   allSlaves[slave].free_resources -= resources;
   used_resources += resources;
   if (DEBUG)
-    cout << "Using Slave " << slave << ": " 
-      << allSlaves[slave].free_resources.cpus << " " 
-      << allSlaves[slave].free_resources.mem << endl;
+    cout << "Using Slave " << slave << ": "
+         << allSlaves[slave].free_resources.cpus << " "
+         << allSlaves[slave].free_resources.mem << endl;
 }
 
-void MesosSimulation::release_resources(
-    size_t slave, const Resources& resources) {
+void MesosSimulation::release_resources(size_t slave,
+                                        const Resources& resources) {
   allSlaves[slave].free_resources += resources;
   used_resources -= resources;
   if (DEBUG)
-    cout << "Using Slave " << slave << ": " 
-      << allSlaves[slave].free_resources.cpus << " " 
-      << allSlaves[slave].free_resources.mem << endl;
+    cout << "Using Slave " << slave << ": "
+         << allSlaves[slave].free_resources.cpus << " "
+         << allSlaves[slave].free_resources.mem << endl;
 }
 
 unordered_map<size_t, Resources> MesosSimulation::all_free_resources() const {
@@ -292,8 +285,7 @@ unordered_map<size_t, Resources> MesosSimulation::all_free_resources() const {
 }
 
 void MesosSimulation::offer_resources(
-    size_t framework_id, 
-    unordered_map<size_t, Resources> resources,
+    size_t framework_id, unordered_map<size_t, Resources> resources,
     double now) {
 
   Framework& f = allFrameworks[framework_id];
@@ -313,27 +305,28 @@ void MesosSimulation::offer_resources(
       const size_t slave_id = kv.first;
       const Resources slave_resources = kv.second;
       Slave& slave = allSlaves.get(slave_id);
-      
+
       if (slave_resources >= todo_task.used_resources) {
         if (DEBUG) cout << "Should schedule" << endl;
         todo_task.slave_id = slave_id;
         this->use_resources(slave_id, todo_task.used_resources);
         resources[slave_id] -= todo_task.used_resources;
 
-	//assert(slave.free_resources >= {0,0,0});
+        //assert(slave.free_resources >= {0,0,0});
 
         todo_task.being_run = true;
         f.current_used += todo_task.used_resources;
-	f.cpu_share = f.current_used.cpus / total_resources.cpus;
-    	f.mem_share = f.current_used.mem / total_resources.mem;
-    	f.disk_share = f.current_used.disk / total_resources.disk;
-    	f.dominant_share = max({f.cpu_share, f.mem_share, f.disk_share});
+        f.cpu_share = f.current_used.cpus / total_resources.cpus;
+        f.mem_share = f.current_used.mem / total_resources.mem;
+        f.disk_share = f.current_used.disk / total_resources.disk;
+        f.dominant_share = max({
+          f.cpu_share, f.mem_share, f.disk_share
+        });
 
         slave.curr_tasks.insert(todo_task.id());
-        this->add_event(
-            new FinishedTaskEvent(now + todo_task.task_time,
-              todo_task.slave_id, framework_id, todo_task.id(),
-              todo_task.job_id));
+        this->add_event(new FinishedTaskEvent(
+            now + todo_task.task_time, todo_task.slave_id, framework_id,
+            todo_task.id(), todo_task.job_id));
 
         if (DEBUG) {
           cout << "Slave scheduled: id=" << slave.id()
@@ -351,15 +344,16 @@ int number_offer_this_round = 0;
 int last_offer_number = 0;
 
 void OfferEvent::run(MesosSimulation& sim) {
-  if (DEBUG) cout << "Time is " << sim.get_clock() << " process_offer function" << endl;
+  if (DEBUG)
+    cout << "Time is " << sim.get_clock() << " process_offer function" << endl;
 
 #if defined RR
   run_round_robin(sim);
 #elif defined DRF
   run_drf(sim);
 #endif
-  if( number_offer_this_round < last_offer_number) {
-	
+  if (number_offer_this_round < last_offer_number) {
+
   }
   last_offer_number = number_offer_this_round;
   // Offer again in 1 second
@@ -367,9 +361,10 @@ void OfferEvent::run(MesosSimulation& sim) {
 
   //cout << "Offers made at time " << << endl;
   //Log utilization
-  cout << sim.get_clock() / 1000000 << " " << sim.used_resources.cpus << " " << sim.total_resources.cpus
-       << " " << sim.used_resources.mem << " " << sim.total_resources.mem 
-       << " " << sim.used_resources.disk << " " << sim.total_resources.disk << endl;
+  cout << sim.get_clock() / 1000000 << " " << sim.used_resources.cpus << " "
+       << sim.total_resources.cpus << " " << sim.used_resources.mem << " "
+       << sim.total_resources.mem << " " << sim.used_resources.disk << " "
+       << sim.total_resources.disk << endl;
 }
 
 void OfferEvent::run_round_robin(MesosSimulation& sim) {
@@ -387,10 +382,11 @@ void OfferEvent::run_drf(MesosSimulation& sim) {
     if (already_offered_framework[framework.id()]) continue;
     double dominant_share = framework.dominant_share;
     if (DEBUG) {
-      cout << "DRF computes dominant share for framework " << framework.id() <<
-        " is " << dominant_share << endl;
+      cout << "DRF computes dominant share for framework " << framework.id()
+           << " is " << dominant_share << endl;
     }
-    if (dominant_share <= min_dominant_share && framework.task_lists.size() > 0) {
+    if (dominant_share <= min_dominant_share &&
+        framework.task_lists.size() > 0) {
       min_dominant_share = dominant_share;
       next_id = framework.id();
     }
@@ -398,9 +394,8 @@ void OfferEvent::run_drf(MesosSimulation& sim) {
   if (DEBUG) cout << "DRF is offering next to framework " << next_id << endl;
   already_offered_framework[next_id] = true;
   number_offer_this_round++;
-  
-  if (number_offer_this_round == already_offered_framework.size()) 
-  {
+
+  if (number_offer_this_round == already_offered_framework.size()) {
     number_offer_this_round = 0;
     already_offered_framework.clear();
   }
@@ -414,9 +409,9 @@ void AuctionEvent::run(MesosSimulation& sim) {
   unordered_map<size_t, Resources> free_resources = sim.all_free_resources();
 
   // - bids
-  unordered_map<FrameworkID, vector<vector<Bid> > > all_bids;
+  unordered_map<FrameworkID, vector<vector<Bid>>> all_bids;
   for (const Framework& framework : sim.allFrameworks) {
-    vector<vector<Bid>>& bids = all_bids[framework.id()]; 
+    vector<vector<Bid>>& bids = all_bids[framework.id()];
     vector<size_t> tasks = framework.eligible_tasks(sim.allTasks, get_time());
 
     for (size_t task_id : tasks) {
@@ -435,7 +430,7 @@ void AuctionEvent::run(MesosSimulation& sim) {
         bid.task_id = task.id();
         bid.requested_resources = task.used_resources;
 
-        bid.wtp = 1.; // FIXME
+        bid.wtp = 1.;  // FIXME
         bids_for_task.push_back(std::move(bid));
       }
       bids.push_back(std::move(bids_for_task));
@@ -457,20 +452,20 @@ void AuctionEvent::run(MesosSimulation& sim) {
   auction.run();
 
   // Get the results
-  const unordered_map<SlaveID, vector<Bid *> > &results = auction.results();
+  const unordered_map<SlaveID, vector<Bid*>>& results = auction.results();
 
   // Increment everyone's budget
   for (Framework& framework : sim.allFrameworks) {
     assert(get_time() >= framework.budget_time);
     framework.budget +=
-      (get_time() - framework.budget_time) * framework.budget_increase_rate;
+        (get_time() - framework.budget_time) * framework.budget_increase_rate;
   }
 
   // Reorganize the results
   //            framework id          slave id
   //            v                     v
   unordered_map<size_t, unordered_map<size_t, Resources>>
-    resources_per_framework_per_slave;
+      resources_per_framework_per_slave;
   for (const auto& result : results) {
     size_t slave_id = result.first;
     const vector<Bid*>& winning_bids = result.second;
@@ -478,8 +473,8 @@ void AuctionEvent::run(MesosSimulation& sim) {
     for (const Bid* bid : winning_bids) {
       assert(slave_id == bid->slave_id);
       resources_per_framework_per_slave[bid->framework_id][slave_id] +=
-        bid->requested_resources;
-      
+          bid->requested_resources;
+
       Framework& framework = sim.allFrameworks.get(bid->framework_id);
       framework.budget -= bid->current_price;
     }
@@ -512,15 +507,16 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
   Task& task = allTasks[t_id];
 
   if (DEBUG) {
-    cout << "Time is " << sim.get_clock() << " finished_task "
-         << t_id << endl;
+    cout << "Time is " << sim.get_clock() << " finished_task " << t_id << endl;
   }
   sim.release_resources(slave.id(), task.used_resources);
   framework.current_used -= task.used_resources;
   framework.cpu_share = framework.current_used.cpus / sim.total_resources.cpus;
   framework.mem_share = framework.current_used.mem / sim.total_resources.mem;
   framework.disk_share = framework.current_used.disk / sim.total_resources.disk;
-  framework.dominant_share = max({framework.cpu_share, framework.mem_share, framework.disk_share});
+  framework.dominant_share = max({
+    framework.cpu_share, framework.mem_share, framework.disk_share
+  });
 
   slave.curr_tasks.erase(t_id);
 
@@ -541,7 +537,7 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
   }
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
   MesosSimulation sim;
   sim.run();
 
@@ -557,3 +553,4 @@ int main(int argc, char *argv[]) {
 
   return 0;
 }
+/* vim: set ts=2 sts=2 sw=2 tw=80 expandtab */

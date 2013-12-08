@@ -9,15 +9,13 @@ using namespace std;
 // We can run all jobs in parallel.
 // We can only run tasks if their start time has passed.
 // TODO: revise this
-vector<size_t> Framework::eligible_tasks(
-    const Indexer<Task>& tasks,
-    double current_time) const {
+vector<size_t> Framework::eligible_tasks(const Indexer<Task>& tasks,
+                                         double current_time) const {
   vector<size_t> result;
 
   for (const deque<size_t>& task_list : task_lists) {
-    if (task_list.size() == 0)
-     continue;
-   
+    if (task_list.size() == 0) continue;
+
     const Task& candidate_task = tasks.get(task_list.front());
     if (candidate_task.being_run || candidate_task.start_time > current_time)
       continue;
@@ -27,4 +25,4 @@ vector<size_t> Framework::eligible_tasks(
 
   return result;
 }
-
+/* vim: set ts=2 sts=2 sw=2 tw=80 expandtab */

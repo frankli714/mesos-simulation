@@ -3,13 +3,12 @@
 
 #include "shared.hpp"
 
-template <typename Sim>
-class Event {
-  friend bool operator<(const Event &e1, const Event &e2) {
+template <typename Sim> class Event {
+  friend bool operator<(const Event& e1, const Event& e2) {
     return e2._etime < e1._etime;
   }
 
-  friend bool operator==(const Event &e1, const Event &e2) {
+  friend bool operator==(const Event& e1, const Event& e2) {
     return e2._etime == e1._etime;
   }
 
@@ -25,8 +24,7 @@ class Event {
   double _etime;
 };
 
-template <typename T>
-class Simulation {
+template <typename T> class Simulation {
  public:
   void add_event(Event<T>* e);
   void run();
@@ -34,19 +32,18 @@ class Simulation {
   double get_clock() const { return Clock; }
   void set_remaining_tasks(int num_tasks) { num_remaining_tasks = num_tasks; }
   void decrement_remaining_tasks() { num_remaining_tasks--; }
+
  private:
   double Clock;
   int num_remaining_tasks;
   priority_queue<Event<T>*, vector<Event<T>*>, pless<Event<T>>> FutureEventList;
 };
 
-template <typename T>
-void Simulation<T>::add_event(Event<T>* e) {
+template <typename T> void Simulation<T>::add_event(Event<T>* e) {
   FutureEventList.push(e);
 }
 
-template <typename T>
-void Simulation<T>::run() {
+template <typename T> void Simulation<T>::run() {
   while (!FutureEventList.empty()) {
     if (DEBUG) cout << endl;
 
@@ -62,3 +59,4 @@ void Simulation<T>::run() {
 }
 
 #endif
+/* vim: set ts=2 sts=2 sw=2 tw=80 expandtab */

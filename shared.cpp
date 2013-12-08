@@ -23,13 +23,13 @@ vector<double> split(const string& str, char delim) {
   return split_v;
 }
 
-
 bool intersect(double s1, double e1, double s2, double e2) {
-	assert(s1 <= e1);
-	assert(s2 <= e2);
+  assert(s1 <= e1);
+  assert(s2 <= e2);
 
   if (s1 > e2 || s2 > e1) {
     return false;
   }
   return true;
 }
+/* vim: set ts=2 sts=2 sw=2 tw=80 expandtab */

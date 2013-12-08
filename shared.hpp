@@ -16,13 +16,13 @@ typedef size_t TaskID;
 typedef size_t FrameworkID;
 
 struct Resources {
-	double cpus;
-	double mem;
-	double disk;
+  double cpus;
+  double mem;
+  double disk;
 
   Resources() : cpus(0), mem(0), disk(0) {}
   Resources(double cpus_, double mem_, double disk_)
-    : cpus(cpus_), mem(mem_), disk(disk_) {}
+      : cpus(cpus_), mem(mem_), disk(disk_) {}
 
   Resources& operator+=(const Resources& other) {
     cpus += other.cpus;
@@ -47,13 +47,9 @@ struct Resources {
     return result;
   }
 
-  bool zero() const {
-    return cpus == 0 && mem == 0 && disk == 0;
-  }
+  bool zero() const { return cpus == 0 && mem == 0 && disk == 0; }
 
-  double sum() const {
-    return cpus + mem + disk;
-  }
+  double sum() const { return cpus + mem + disk; }
 
   std::string tostring() const {
     std::stringstream ss;
@@ -86,33 +82,33 @@ inline Resources operator*(Resources left, const Resources& right) {
 }
 
 inline bool operator>(const Resources& left, const Resources& right) {
-  return left.cpus > right.cpus && left.mem > right.mem && left.disk > right.disk;
+  return left.cpus > right.cpus && left.mem > right.mem &&
+         left.disk > right.disk;
 }
 
 inline bool operator<(const Resources& left, const Resources& right) {
-  return left.cpus < right.cpus && left.mem < right.mem && left.disk < right.disk;
+  return left.cpus < right.cpus && left.mem < right.mem &&
+         left.disk < right.disk;
 }
 
 inline bool operator>=(const Resources& left, const Resources& right) {
-  return left.cpus >= right.cpus && left.mem >= right.mem && left.disk >= right.disk;
+  return left.cpus >= right.cpus && left.mem >= right.mem &&
+         left.disk >= right.disk;
 }
 
 inline bool operator<=(const Resources& left, const Resources& right) {
-  return left.cpus <= right.cpus && left.mem <= right.mem && left.disk <=
-    right.disk;
+  return left.cpus <= right.cpus && left.mem <= right.mem &&
+         left.disk <= right.disk;
 }
 
-
-template <typename T>
-class Indexer {
+template <typename T> class Indexer {
  public:
   Indexer() {}
 
-  template <class... Args>
-  T& add(Args&&... args) {
+  template <class... Args> T& add(Args&& ... args) {
     objects.emplace_back(args...);
     T& added = objects.back();
-    added.set_id(objects.size()-1);
+    added.set_id(objects.size() - 1);
     return added;
   }
 
@@ -126,7 +122,9 @@ class Indexer {
 
   size_t size() const { return objects.size(); }
   typename std::vector<T>::iterator begin() { return objects.begin(); }
-  typename std::vector<T>::const_iterator begin() const { return objects.begin(); }
+  typename std::vector<T>::const_iterator begin() const {
+    return objects.begin();
+  }
   typename std::vector<T>::iterator end() { return objects.end(); }
   typename std::vector<T>::const_iterator end() const { return objects.end(); }
 
@@ -138,6 +136,7 @@ class Indexable {
  public:
   size_t id() const { return _id; }
   void set_id(size_t id) { _id = id; }
+
  private:
   size_t _id;
 };
@@ -164,11 +163,14 @@ std::vector<double> split(const std::string& str, char delim);
 bool intersect(double s1, double e1, double s2, double e2);
 
 // Comparator for pointer types.
-// Taken from <http://stackoverflow.com/questions/1517854/priority-queue-comparison-for-pointers>.
-template<typename Type, typename Compare = std::less<Type> >
-struct pless : public std::binary_function<Type *, Type *, bool> {
-    bool operator()(const Type *x, const Type *y) const
-        { return Compare()(*x, *y); }
+// Taken from
+// <http://stackoverflow.com/questions/1517854/priority-queue-comparison-for-pointers>.
+template <typename Type, typename Compare = std::less<Type> >
+struct pless : public std::binary_function<Type*, Type*, bool> {
+  bool operator()(const Type* x, const Type* y) const {
+    return Compare()(*x, *y);
+  }
 };
 
 #endif  // __SHARED_HPP__
+/* vim: set ts=2 sts=2 sw=2 tw=80 expandtab */
