@@ -28,15 +28,13 @@ class Auction {
   Auction(const unordered_map<FrameworkID, vector<vector<Bid>>>& _all_bids,
           const unordered_map<SlaveID, Resources>& _resources,
           const Resources& _reservation_price, const double _min_price_increase,
-          const double _price_multiplier, bool _log_events = true);
+          const double _price_multiplier);
 
   void run();
 
   const unordered_map<SlaveID, vector<Bid*>>& results() const {
     return winning_bids_per_slave;
   }
-
-  const vector<string>& get_log() { return log; }
 
  private:
   bool displace(const Bid& new_bid, vector<Bid*>& displaced_bids,
@@ -50,9 +48,6 @@ class Auction {
 
   const double min_price_increase;
   const double price_multiplier;
-
-  bool log_events;
-  vector<string> log;
 };
 
 #endif  // __AUCTION_HPP__
