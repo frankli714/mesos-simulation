@@ -25,4 +25,16 @@ vector<size_t> Framework::eligible_tasks(const Indexer<Task>& tasks,
 
   return result;
 }
+
+bool Framework::has_eligible_tasks(const Indexer<Task>& tasks,
+                                   double current_time) const {
+  for(const deque<size_t>& task_list : task_lists) {
+    if (task_list.size() == 0) continue;
+    const Task& candidate_task = tasks.get(task_list.front());
+    if (candidate_task.being_run || candidate_task.start_time > current_time)
+      continue;
+    return true;
+  }
+  return false;
+}
 /* vim: set ts=2 sts=2 sw=2 tw=80 expandtab */

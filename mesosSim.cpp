@@ -87,7 +87,7 @@ class MesosSimulation : public Simulation<MesosSimulation> {
 };
 
 size_t MesosSimulation::round_robin_next_framework = 0;
-const int MesosSimulation::num_slaves = 500;
+const int MesosSimulation::num_slaves = 100;
 const int MesosSimulation::num_frameworks = 397;
 int MesosSimulation::max_job_id = 0;
 Resources MesosSimulation::total_resources;
@@ -134,8 +134,8 @@ void trace_workload(
   }
 
   string line;
-  ifstream trace("task_times_converted.txt");
-  //ifstream trace("short_traces.txt");
+  //ifstream trace("task_times_converted.txt");
+  ifstream trace("short_traces.txt");
   if (trace.is_open()) {
     cout << " IN " << endl;
     int job_vector_index = 0;
@@ -389,6 +389,7 @@ void OfferEvent::run_drf(MesosSimulation& sim) {
 
   double min_dominant_share = 1.0;
   double next_id = 0;
+  double now = get_time();
   for (const Framework& framework : sim.allFrameworks) {
     if (already_offered_framework[framework.id()]) continue;
     double dominant_share = framework.dominant_share;
@@ -397,7 +398,7 @@ void OfferEvent::run_drf(MesosSimulation& sim) {
            << " is " << dominant_share << endl;
     }
     if (dominant_share <= min_dominant_share &&
-        framework.task_lists.size() > 0) {
+        framework.has_eligible_tasks(sim.allTasks, now)) {
       min_dominant_share = dominant_share;
       next_id = framework.id();
     }
