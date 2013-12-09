@@ -180,7 +180,7 @@ void trace_workload(
       }
 
       Framework& f = allFrameworks[(int) split_v[4]];
-
+      assert(f.id()==(int) split_v[4]);
       //Create event for the start time of each task, so we know a new task is
       //eligible for a particular framework
       sim->add_event(new StartTaskEvent(t.start_time, f.id()));
