@@ -508,7 +508,7 @@ void AuctionEvent::run(MesosSimulation& sim) {
 
   // Run the auction
   Auction auction(all_bids, free_resources, reservation_price,
-                  min_price_increase, price_multiplier, true);
+                  min_price_increase, price_multiplier);
   auction.run();
 
   // Get the results
@@ -531,11 +531,6 @@ void AuctionEvent::run(MesosSimulation& sim) {
       Framework& framework = sim.allFrameworks.get(bid->framework_id);
       framework.budget -= bid->current_price;
     }
-  }
-
-  // Print log
-  for (const string& line : auction.get_log()) {
-    cerr << line << endl;
   }
 
   // Implement the results
