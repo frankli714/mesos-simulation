@@ -1,8 +1,9 @@
 CXX = g++
 CXXFLAGS = -g -O3 -march=native -std=c++0x
+LIBS = -lglog
 
 mesosSim : mesosSim.o auction.o shared.o mesos.o
-	$(CXX) $(CXXFLAGS) $^ -o $@
+	$(CXX) $(CXXFLAGS) $(LIBS) $^ -o $@
 
 auction.o : auction.cpp auction.hpp shared.hpp
 
