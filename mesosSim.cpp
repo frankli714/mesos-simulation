@@ -39,6 +39,18 @@ class AuctionEvent : public Event<MesosSimulation> {
   virtual void run(MesosSimulation& sim);
 };
 
+class StartTaskEvent: public Event<MesosSimulation> {
+ public:
+   StartTaskEvent(double etime, unsigned int framework_id) 
+     : Event(etime),
+     _framework_id(framework_id) {}
+
+   virtual void run(MesosSimulation& sim);
+
+ private:
+   unsigned int _framework_id;
+};
+
 class FinishedTaskEvent : public Event<MesosSimulation> {
  public:
   FinishedTaskEvent(double etime, unsigned int slave_id,
@@ -124,7 +136,8 @@ void trace_workload(
     int num_frameworks, int& max_job_id, Indexer<Framework>& allFrameworks,
     Indexer<Task>& allTasks,
     unordered_map<unsigned int, pair<int, double>>& jobs_to_tasks,
-    unordered_map<unsigned int, int>& jobs_to_num_tasks) {
+    unordered_map<unsigned int, int>& jobs_to_num_tasks,
+    MesosSimulation* sim) {
 
   for (int i = 0; i < num_frameworks; i++) {
     Framework& framework = allFrameworks.add();
@@ -164,6 +177,10 @@ void trace_workload(
       }
 
       Framework& f = allFrameworks[(int) split_v[4]];
+
+      //Create event for the start time of each task, so we know a new task is
+      //eligible for a particular framework
+      sim->add_event(new StartTaskEvent(t.start_time, f.id()));
 
       if (split_v[0] != last_j_id) {
         last_j_id = split_v[0];
@@ -226,7 +243,7 @@ MesosSimulation::MesosSimulation() {
 
   //rand_workload(num_frameworks, 2, 2, allFrameworks, allTasks);
   trace_workload(num_frameworks, max_job_id, allFrameworks, allTasks,
-                 jobs_to_tasks, jobs_to_num_tasks);
+                 jobs_to_tasks, jobs_to_num_tasks, this);
   cout << "Done generating workload" << endl;
   set_remaining_tasks(allTasks.size());
 
@@ -322,7 +339,7 @@ void MesosSimulation::offer_resources(
         this->use_resources(slave_id, todo_task.used_resources);
         slave_resources -= todo_task.used_resources;
 
-	Resources zero = {0,0,0};
+        Resources zero = {0,0,0};
         assert(slave.free_resources >= zero);
 
         todo_task.being_run = true;
@@ -333,6 +350,8 @@ void MesosSimulation::offer_resources(
         f.dominant_share = max({
           f.cpu_share, f.mem_share, f.disk_share
         });
+        f.num_tasks_available -= 1;
+        assert(f.num_tasks_available >= 0);
 
         slave.curr_tasks.insert(todo_task.id());
         this->add_event(new FinishedTaskEvent(
@@ -390,6 +409,7 @@ void OfferEvent::run_drf(MesosSimulation& sim) {
   double min_dominant_share = 1.0;
   double next_id = 0;
   double now = get_time();
+  bool make_offer = false;
   for (const Framework& framework : sim.allFrameworks) {
     if (already_offered_framework[framework.id()]) continue;
     double dominant_share = framework.dominant_share;
@@ -398,7 +418,8 @@ void OfferEvent::run_drf(MesosSimulation& sim) {
            << " is " << dominant_share << endl;
     }
     if (dominant_share <= min_dominant_share &&
-        framework.has_eligible_tasks(sim.allTasks, now)) {
+        framework.num_tasks_available > 0) {
+      make_offer = true;
       min_dominant_share = dominant_share;
       next_id = framework.id();
     }
@@ -412,7 +433,10 @@ void OfferEvent::run_drf(MesosSimulation& sim) {
     already_offered_framework.clear();
   }
   // Offer everything to the most dominant-resource-starved framework
-  sim.offer_resources(next_id, sim.all_free_resources(), get_time());
+  if (make_offer) {
+    cout << "Making offer!" << endl;
+    sim.offer_resources(next_id, sim.all_free_resources(), get_time());
+  }
 }
 
 void AuctionEvent::run(MesosSimulation& sim) {
@@ -511,6 +535,12 @@ void AuctionEvent::run(MesosSimulation& sim) {
   cin.get();
 }
 
+void StartTaskEvent::run(MesosSimulation& sim) {
+  unsigned int f_id = this->_framework_id;
+  Framework& f = sim.allFrameworks[f_id];
+  f.num_tasks_available += 1;
+}
+
 void FinishedTaskEvent::run(MesosSimulation& sim) {
   auto& allFrameworks = sim.allFrameworks;
   auto& allTasks = sim.allTasks;
@@ -537,7 +567,7 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
   framework.dominant_share = max({
     framework.cpu_share, framework.mem_share, framework.disk_share
   });
-
+  
   slave.curr_tasks.erase(t_id);
 
   for (deque<size_t>& task_list : framework.task_lists) {
