@@ -416,15 +416,18 @@ void OfferEvent::run_drf(MesosSimulation& sim) {
   double next_id = 0;
   double now = get_time();
   bool make_offer = false;
-  for (const Framework& framework : sim.allFrameworks) {
-    if (already_offered_framework.count(framework.id()) > 0) continue;
+  for (auto it = sim.framework_num_tasks_available.begin();
+     it != sim.framework_num_tasks_available.end();
+     it++ ) {
+    Framework& framework = sim.allFrameworks[it->first];
+    assert(sim.framework_num_tasks_available.count(framework.id()) > 0);
+    if ( already_offered_framework.count(framework.id()) > 0) continue;
     double dominant_share = framework.dominant_share;
     if (DEBUG) {
       cout << "DRF computes dominant share for framework " << framework.id()
            << " is " << dominant_share << endl;
     }
-    if (dominant_share <= min_dominant_share &&
-        sim.framework_num_tasks_available.count(framework.id()) > 0) {
+    if (dominant_share <= min_dominant_share) {
       make_offer = true;
       min_dominant_share = dominant_share;
       next_id = framework.id();
@@ -444,7 +447,7 @@ void OfferEvent::run_drf(MesosSimulation& sim) {
       }
     }
     if (all_offered) {
-      cout << "All offers made!" << endl;
+      cout << "All offers made after this round!" << endl;
       sim.currently_making_offers = false;
       already_offered_framework.clear();
     }
