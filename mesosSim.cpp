@@ -97,6 +97,8 @@ class MesosSimulation : public Simulation<MesosSimulation> {
   static int max_job_id;
 
   static Resources total_resources, used_resources;
+
+  bool currently_making_offers;
 };
 
 size_t MesosSimulation::round_robin_next_framework = 0;
@@ -148,8 +150,8 @@ void trace_workload(
   }
 
   string line;
-  //ifstream trace("task_times_converted.txt");
-  ifstream trace("short_traces.txt");
+  ifstream trace("task_times_converted.txt");
+  //ifstream trace("short_traces.txt");
   if (trace.is_open()) {
     cout << " IN " << endl;
     int job_vector_index = 0;
@@ -236,6 +238,8 @@ void trace_workload(
 }
 
 MesosSimulation::MesosSimulation() {
+  currently_making_offers = false;
+
   // lets initialize slave state and the event queue
   for (int i = 0; i < num_slaves; i++) {
     allSlaves.add();
@@ -267,7 +271,7 @@ MesosSimulation::MesosSimulation() {
     }
   }
   cout << "DONE " << sum_size << endl;
-  add_event(new OfferEvent(5637000000));
+  //add_event(new OfferEvent(5637000000));
 
   if (DEBUG) {
     for (const auto& slave : allSlaves) {
@@ -386,8 +390,9 @@ void OfferEvent::run(MesosSimulation& sim) {
 #elif defined DRF
   run_drf(sim);
 #endif
-  // Offer again in 1 second
-  sim.add_event(new OfferEvent(this->get_time() + 10000000));
+  // Offer again in 1 second if we should be making offers anyways
+  if (sim.currently_making_offers)
+    sim.add_event(new OfferEvent(this->get_time() + 1000000));
 
   //cout << "Offers made at time " << << endl;
   //Log utilization
@@ -406,6 +411,7 @@ void OfferEvent::run_round_robin(MesosSimulation& sim) {
 
 void OfferEvent::run_drf(MesosSimulation& sim) {
 
+  assert(sim.currently_making_offers);
   double min_dominant_share = 1.0;
   double next_id = 0;
   double now = get_time();
@@ -438,11 +444,15 @@ void OfferEvent::run_drf(MesosSimulation& sim) {
       }
     }
     if (all_offered) {
+      cout << "All offers made!" << endl;
+      sim.currently_making_offers = false;
       already_offered_framework.clear();
     }
 
-    cout << "Making offer!" << endl;
+    cout << "Making offer to " << next_id << endl;
     sim.offer_resources(next_id, sim.all_free_resources(), get_time());
+  } else {
+    sim.currently_making_offers = false;
   }
 }
 
@@ -542,6 +552,13 @@ void AuctionEvent::run(MesosSimulation& sim) {
   cin.get();
 }
 
+double roundUp(double curr_time, double increments) {
+  double remainder = fmod(curr_time, increments);
+  if (remainder == 0)
+    return curr_time;
+  return curr_time + increments - remainder;
+}
+
 void StartTaskEvent::run(MesosSimulation& sim) {
   unsigned int f_id = this->_framework_id;
   Framework& f = sim.allFrameworks[f_id];
@@ -551,6 +568,12 @@ void StartTaskEvent::run(MesosSimulation& sim) {
   } else {
     sim.framework_num_tasks_available[f.id()] += 1;
   }
+
+  //Restart making offers, because this new task may be schedulable
+  if(!sim.currently_making_offers) {
+    sim.currently_making_offers = true;
+    sim.add_event(new OfferEvent( roundUp(this->get_time(), 1000000)));
+  }
 }
 
 void FinishedTaskEvent::run(MesosSimulation& sim) {
@@ -558,6 +581,8 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
   auto& allTasks = sim.allTasks;
   auto& allSlaves = sim.allSlaves;
   auto& jobs_to_tasks = sim.jobs_to_tasks;
+
+  cout << "Finishing a task at " << this->get_time() << " for framework " << this->_framework_id << endl;
 
   unsigned int s_id = this->_slave_id;
   unsigned int t_id = this->_task_id;
@@ -597,6 +622,13 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
     double start = jobs_to_tasks[j_id].second;
     jobs_to_tasks[j_id].second = this->get_time() - start;
   }
+  
+  //Restart making offers, in the case that a task can be scheduled now
+  if(!sim.currently_making_offers) {
+    sim.currently_making_offers = true;
+    sim.add_event(new OfferEvent( roundUp(this->get_time(), 1000000)));
+  }
+
 }
 
 int main(int argc, char* argv[]) {
