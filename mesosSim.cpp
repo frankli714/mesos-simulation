@@ -90,6 +90,7 @@ class MesosSimulation : public Simulation<MesosSimulation> {
 
   unordered_map<unsigned int, pair<int, double>> jobs_to_tasks;
   unordered_map<unsigned int, int> jobs_to_num_tasks;
+  unordered_map<unsigned int, int> framework_num_tasks_available;
 
   static const int num_slaves;
   static const int num_frameworks;
@@ -350,8 +351,13 @@ void MesosSimulation::offer_resources(
         f.dominant_share = max({
           f.cpu_share, f.mem_share, f.disk_share
         });
-        f.num_tasks_available -= 1;
-        assert(f.num_tasks_available >= 0);
+        assert(framework_num_tasks_available.find(f.id()) != framework_num_tasks_available.end());
+        framework_num_tasks_available[f.id()] -= 1;
+        assert(framework_num_tasks_available[f.id()] >= 0);
+        if (framework_num_tasks_available[f.id()] == 0) {
+          framework_num_tasks_available.erase(f.id());
+          assert(framework_num_tasks_available.find(f.id()) == framework_num_tasks_available.end());
+        }
 
         slave.curr_tasks.insert(todo_task.id());
         this->add_event(new FinishedTaskEvent(
@@ -418,7 +424,7 @@ void OfferEvent::run_drf(MesosSimulation& sim) {
            << " is " << dominant_share << endl;
     }
     if (dominant_share <= min_dominant_share &&
-        framework.num_tasks_available > 0) {
+        sim.framework_num_tasks_available.find(framework.id()) != sim.framework_num_tasks_available.end()) {
       make_offer = true;
       min_dominant_share = dominant_share;
       next_id = framework.id();
@@ -432,7 +438,8 @@ void OfferEvent::run_drf(MesosSimulation& sim) {
     number_offer_this_round = 0;
     already_offered_framework.clear();
   }
-  // Offer everything to the most dominant-resource-starved framework
+  // Offer everything to the most dominant-resource-starved framework, 
+  // only if there exists tasks to schedule
   if (make_offer) {
     cout << "Making offer!" << endl;
     sim.offer_resources(next_id, sim.all_free_resources(), get_time());
@@ -538,7 +545,11 @@ void AuctionEvent::run(MesosSimulation& sim) {
 void StartTaskEvent::run(MesosSimulation& sim) {
   unsigned int f_id = this->_framework_id;
   Framework& f = sim.allFrameworks[f_id];
-  f.num_tasks_available += 1;
+  if(sim.framework_num_tasks_available.find(f.id()) == sim.framework_num_tasks_available.end()) {
+    sim.framework_num_tasks_available[f.id()] = 1;
+  } else {
+    sim.framework_num_tasks_available[f.id()] += 1;
+  }
 }
 
 void FinishedTaskEvent::run(MesosSimulation& sim) {
