@@ -1,5 +1,8 @@
 from collections import defaultdict
+import argparse
+import pickle
 from random import *
+import sys
 
 cutoffs = [0.5, 2, 8, 64, 256, 1024, float('inf')]
 machine_counts = [
@@ -10,7 +13,7 @@ machine_counts = [
         (126, (.25, .25, 1)), 
         (52, (.5, .12, 1))]
 
-def buckets(jobs):
+def generate_statistics(jobs):
     task_sizes_by_bucket = { x : [] for x in cutoffs }
     counts_by_bucket = { x : 0 for x in cutoffs }
     for v in jobs.values():
@@ -49,8 +52,8 @@ def weighted_sample(xs):
             return i
         i += 1
 
-def generate_tasks(jobs, frameworks, n):
-    sizes, counts = buckets(jobs)
+def generate_tasks(statistics, frameworks, n):
+    sizes, counts = statistics
     for c in cutoffs:
         if c > n:
             counts[c] = 0
@@ -88,7 +91,9 @@ def average(t1, t2):
 def null_entry():
     return [0] + [[]] + [0 for field in ['cpu', 'ram', 'disk']]
 
-def populate_jobs(filename="task_times_converted.txt", samples = float('inf')):
+def populate_jobs(samples = float('inf'), filename=None):
+    if filename is None:
+        filename = default_data_source()
     with open(filename, 'r') as f:
         jobs = defaultdict(null_entry)
         k = 0
@@ -101,3 +106,39 @@ def populate_jobs(filename="task_times_converted.txt", samples = float('inf')):
             if k > samples:
                 return jobs
     return jobs
+
+def default_data_source():
+    return "task_times_converted.txt"
+
+def main():
+    print_tasks(generate_tasks(populate_jobs(samples=200000), 5, 20000))
+
+def cache_statistics(samples, filename=None):
+    if filename is None:
+        filename = default_data_source()
+    cache = 'cached_statistics_{}_{}'.format(samples, filename)
+    try:
+        with open(cache, 'r') as f:
+            statistics = pickle.load(f)
+        assert( len(statistics) == 2)
+        assert( all( c in statistics[1].keys() for c in cutoffs ) )
+    except Exception:
+        print("Recomputing statistics...")
+        statistics = generate_statistics(populate_jobs(samples, filename))
+        with open(cache, 'w') as f:
+            pickle.dump(statistics, f)
+    return statistics
+
+helpstring = "Generate statistical summary of trace and use it to synthesize comparable workload. "
+helpstring += "Output is one task per line, space-separated: jobid, frameworkid, time, cpu, memory, disk."
+
+parser = argparse.ArgumentParser(description=helpstring)
+parser.add_argument('tasks', metavar='t', type=int, help='number of tasks to generate')
+parser.add_argument('frameworks', metavar='f', type=int, help='number of frameworks to assign tasks to')
+parser.add_argument('--samples', metavar='s', type=int, help='number of samples to use to generate statistics [default=200000, max=1000000]', default=200000)
+parser.add_argument('--output', metavar='o', type=str, help='filename to store result [default=synthetic_workload.txt]', default='synthetic_workload.txt')
+parser.add_argument('--input', metavar='i', type=str, help='trace to use as input [default={}]'.format(default_data_source()), default=default_data_source())
+args = parser.parse_args()
+
+statistics = cache_statistics(args.samples, args.input)
+print_tasks(generate_tasks(statistics, args.frameworks, args.tasks), args.output)
