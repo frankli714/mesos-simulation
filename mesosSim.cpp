@@ -39,6 +39,18 @@ class AuctionEvent : public Event<MesosSimulation> {
   virtual void run(MesosSimulation& sim);
 };
 
+class StartTaskEvent: public Event<MesosSimulation> {
+ public:
+   StartTaskEvent(double etime, unsigned int framework_id) 
+     : Event(etime),
+     _framework_id(framework_id) {}
+
+   virtual void run(MesosSimulation& sim);
+
+ private:
+   unsigned int _framework_id;
+};
+
 class FinishedTaskEvent : public Event<MesosSimulation> {
  public:
   FinishedTaskEvent(double etime, unsigned int slave_id,
@@ -78,16 +90,19 @@ class MesosSimulation : public Simulation<MesosSimulation> {
 
   unordered_map<unsigned int, pair<int, double>> jobs_to_tasks;
   unordered_map<unsigned int, int> jobs_to_num_tasks;
+  unordered_map<unsigned int, int> framework_num_tasks_available;
 
   static const int num_slaves;
   static const int num_frameworks;
   static int max_job_id;
 
   static Resources total_resources, used_resources;
+
+  bool currently_making_offers;
 };
 
 size_t MesosSimulation::round_robin_next_framework = 0;
-const int MesosSimulation::num_slaves = 2000;
+const int MesosSimulation::num_slaves = 100;
 const int MesosSimulation::num_frameworks = 397;
 int MesosSimulation::max_job_id = 0;
 Resources MesosSimulation::total_resources;
@@ -124,7 +139,8 @@ void trace_workload(
     int num_frameworks, int& max_job_id, Indexer<Framework>& allFrameworks,
     Indexer<Task>& allTasks,
     unordered_map<unsigned int, pair<int, double>>& jobs_to_tasks,
-    unordered_map<unsigned int, int>& jobs_to_num_tasks) {
+    unordered_map<unsigned int, int>& jobs_to_num_tasks,
+    MesosSimulation* sim) {
 
   for (int i = 0; i < num_frameworks; i++) {
     Framework& framework = allFrameworks.add();
@@ -164,6 +180,10 @@ void trace_workload(
       }
 
       Framework& f = allFrameworks[(int) split_v[4]];
+      assert(f.id()==(int) split_v[4]);
+      //Create event for the start time of each task, so we know a new task is
+      //eligible for a particular framework
+      sim->add_event(new StartTaskEvent(t.start_time, f.id()));
 
       if (split_v[0] != last_j_id) {
         last_j_id = split_v[0];
@@ -218,6 +238,8 @@ void trace_workload(
 }
 
 MesosSimulation::MesosSimulation() {
+  currently_making_offers = false;
+
   // lets initialize slave state and the event queue
   for (int i = 0; i < num_slaves; i++) {
     allSlaves.add();
@@ -226,7 +248,7 @@ MesosSimulation::MesosSimulation() {
 
   //rand_workload(num_frameworks, 2, 2, allFrameworks, allTasks);
   trace_workload(num_frameworks, max_job_id, allFrameworks, allTasks,
-                 jobs_to_tasks, jobs_to_num_tasks);
+                 jobs_to_tasks, jobs_to_num_tasks, this);
   cout << "Done generating workload" << endl;
   set_remaining_tasks(allTasks.size());
 
@@ -249,7 +271,7 @@ MesosSimulation::MesosSimulation() {
     }
   }
   cout << "DONE " << sum_size << endl;
-  add_event(new OfferEvent(5637000000));
+  //add_event(new OfferEvent(5637000000));
 
   if (DEBUG) {
     for (const auto& slave : allSlaves) {
@@ -263,6 +285,7 @@ MesosSimulation::MesosSimulation() {
 void MesosSimulation::use_resources(size_t slave, const Resources& resources) {
   allSlaves[slave].free_resources -= resources;
   used_resources += resources;
+  assert(used_resources <= total_resources);
   if (DEBUG)
     cout << "Using Slave " << slave << ": "
          << allSlaves[slave].free_resources.cpus << " "
@@ -273,6 +296,12 @@ void MesosSimulation::release_resources(size_t slave,
                                         const Resources& resources) {
   allSlaves[slave].free_resources += resources;
   used_resources -= resources;
+  Resources zero = {0,0,0};
+  if(used_resources < zero){
+    Resources small_neg = {-1*pow(10,-10),-1*pow(10,-10),-1*pow(10,-10)};
+    assert(used_resources > small_neg);
+    used_resources = zero;
+  }
   if (DEBUG)
     cout << "Using Slave " << slave << ": "
          << allSlaves[slave].free_resources.cpus << " "
@@ -315,7 +344,8 @@ void MesosSimulation::offer_resources(
         this->use_resources(slave_id, todo_task.used_resources);
         slave_resources -= todo_task.used_resources;
 
-        //assert(slave.free_resources >= {0,0,0});
+        Resources zero = {0,0,0};
+        assert(slave.free_resources >= zero);
 
         todo_task.being_run = true;
         f.current_used += todo_task.used_resources;
@@ -325,6 +355,13 @@ void MesosSimulation::offer_resources(
         f.dominant_share = max({
           f.cpu_share, f.mem_share, f.disk_share
         });
+        assert(framework_num_tasks_available.count(f.id()) > 0);
+        framework_num_tasks_available[f.id()] -= 1;
+        assert(framework_num_tasks_available[f.id()] >= 0);
+        if (framework_num_tasks_available[f.id()] == 0) {
+          framework_num_tasks_available.erase(f.id());
+          assert(framework_num_tasks_available.count(f.id()) == 0);
+        }
 
         slave.curr_tasks.insert(todo_task.id());
         this->add_event(new FinishedTaskEvent(
@@ -343,8 +380,6 @@ void MesosSimulation::offer_resources(
 }
 
 unordered_map<double, bool> already_offered_framework;
-int number_offer_this_round = 0;
-int last_offer_number = 0;
 
 void OfferEvent::run(MesosSimulation& sim) {
   if (DEBUG)
@@ -355,12 +390,9 @@ void OfferEvent::run(MesosSimulation& sim) {
 #elif defined DRF
   run_drf(sim);
 #endif
-  if (number_offer_this_round < last_offer_number) {
-
-  }
-  last_offer_number = number_offer_this_round;
-  // Offer again in 1 second
-  sim.add_event(new OfferEvent(this->get_time() + 10000000));
+  // Offer again in 1 second if we should be making offers anyways
+  if (sim.currently_making_offers)
+    sim.add_event(new OfferEvent(this->get_time() + 1000000));
 
   //cout << "Offers made at time " << << endl;
   //Log utilization
@@ -379,31 +411,52 @@ void OfferEvent::run_round_robin(MesosSimulation& sim) {
 
 void OfferEvent::run_drf(MesosSimulation& sim) {
 
+  assert(sim.currently_making_offers);
   double min_dominant_share = 1.0;
   double next_id = 0;
-  for (const Framework& framework : sim.allFrameworks) {
-    if (already_offered_framework[framework.id()]) continue;
+  double now = get_time();
+  bool make_offer = false;
+  for (auto it = sim.framework_num_tasks_available.begin();
+     it != sim.framework_num_tasks_available.end();
+     it++ ) {
+    Framework& framework = sim.allFrameworks[it->first];
+    assert(sim.framework_num_tasks_available.count(framework.id()) > 0);
+    if ( already_offered_framework.count(framework.id()) > 0) continue;
     double dominant_share = framework.dominant_share;
     if (DEBUG) {
       cout << "DRF computes dominant share for framework " << framework.id()
            << " is " << dominant_share << endl;
     }
-    if (dominant_share <= min_dominant_share &&
-        framework.task_lists.size() > 0) {
+    if (dominant_share <= min_dominant_share) {
+      make_offer = true;
       min_dominant_share = dominant_share;
       next_id = framework.id();
     }
   }
   if (DEBUG) cout << "DRF is offering next to framework " << next_id << endl;
-  already_offered_framework[next_id] = true;
-  number_offer_this_round++;
+  // Offer everything to the most dominant-resource-starved framework, 
+  // only if there exists tasks to schedule
+  if (make_offer) {
+    already_offered_framework[next_id] = true;
 
-  if (number_offer_this_round == already_offered_framework.size()) {
-    number_offer_this_round = 0;
-    already_offered_framework.clear();
+    bool all_offered = true;
+    for ( auto it = sim.framework_num_tasks_available.begin(); it != sim.framework_num_tasks_available.end(); it++) {
+      if(already_offered_framework.count(it->first) == 0){
+        all_offered = false;
+        break;
+      }
+    }
+    if (all_offered) {
+      cout << "All offers made after this round!" << endl;
+      sim.currently_making_offers = false;
+      already_offered_framework.clear();
+    }
+
+    cout << "Making offer to " << next_id << endl;
+    sim.offer_resources(next_id, sim.all_free_resources(), get_time());
+  } else {
+    sim.currently_making_offers = false;
   }
-  // Offer everything to the most dominant-resource-starved framework
-  sim.offer_resources(next_id, sim.all_free_resources(), get_time());
 }
 
 void AuctionEvent::run(MesosSimulation& sim) {
@@ -497,11 +550,37 @@ void AuctionEvent::run(MesosSimulation& sim) {
   cin.get();
 }
 
+double roundUp(double curr_time, double increments) {
+  double remainder = fmod(curr_time, increments);
+  if (remainder == 0)
+    return curr_time;
+  return curr_time + increments - remainder;
+}
+
+void StartTaskEvent::run(MesosSimulation& sim) {
+  unsigned int f_id = this->_framework_id;
+  Framework& f = sim.allFrameworks[f_id];
+  cout << "Starting task at time " << this->get_time() << " for framework " << f_id << endl;
+  if(sim.framework_num_tasks_available.count(f.id()) == 0) {
+    sim.framework_num_tasks_available[f.id()] = 1;
+  } else {
+    sim.framework_num_tasks_available[f.id()] += 1;
+  }
+
+  //Restart making offers, because this new task may be schedulable
+  if(!sim.currently_making_offers) {
+    sim.currently_making_offers = true;
+    sim.add_event(new OfferEvent( roundUp(this->get_time(), 1000000)));
+  }
+}
+
 void FinishedTaskEvent::run(MesosSimulation& sim) {
   auto& allFrameworks = sim.allFrameworks;
   auto& allTasks = sim.allTasks;
   auto& allSlaves = sim.allSlaves;
   auto& jobs_to_tasks = sim.jobs_to_tasks;
+
+  cout << "Finishing a task at " << this->get_time() << " for framework " << this->_framework_id << endl;
 
   unsigned int s_id = this->_slave_id;
   unsigned int t_id = this->_task_id;
@@ -523,7 +602,7 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
   framework.dominant_share = max({
     framework.cpu_share, framework.mem_share, framework.disk_share
   });
-
+  
   slave.curr_tasks.erase(t_id);
 
   for (deque<size_t>& task_list : framework.task_lists) {
@@ -541,6 +620,13 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
     double start = jobs_to_tasks[j_id].second;
     jobs_to_tasks[j_id].second = this->get_time() - start;
   }
+  
+  //Restart making offers, in the case that a task can be scheduled now
+  if(!sim.currently_making_offers) {
+    sim.currently_making_offers = true;
+    sim.add_event(new OfferEvent( roundUp(this->get_time(), 1000000)));
+  }
+
 }
 
 int main(int argc, char* argv[]) {

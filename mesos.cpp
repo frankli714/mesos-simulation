@@ -25,4 +25,5 @@ vector<size_t> Framework::eligible_tasks(const Indexer<Task>& tasks,
 
   return result;
 }
+
 /* vim: set ts=2 sts=2 sw=2 tw=80 expandtab */
