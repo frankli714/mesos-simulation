@@ -2,6 +2,7 @@
 #include <cassert>
 #include <climits>
 #include <cmath>
+#include <iomanip>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
@@ -89,7 +90,7 @@ class MesosSimulation : public Simulation<MesosSimulation> {
   Indexer<Slave> allSlaves;
   Indexer<Framework> allFrameworks;
   Indexer<Task> allTasks;
-
+  
   static size_t round_robin_next_framework;
 
   unordered_map<double, pair<int, double>> jobs_to_tasks;
@@ -102,6 +103,7 @@ class MesosSimulation : public Simulation<MesosSimulation> {
 
   static Resources total_resources, used_resources;
 
+  bool ready_for_auction;
   bool currently_making_offers;
 };
 
@@ -251,6 +253,7 @@ void trace_workload(
 
 MesosSimulation::MesosSimulation() {
   currently_making_offers = false;
+  ready_for_auction = true;
 
   assert(num_slaves >= num_special_slaves);
   // lets initialize slave state and the event queue
@@ -301,6 +304,8 @@ MesosSimulation::MesosSimulation() {
 void MesosSimulation::use_resources(size_t slave, const Resources& resources) {
   allSlaves[slave].free_resources -= resources;
   used_resources += resources;
+  cout << "Used resources = " << used_resources << "; total resources = " << total_resources << endl;
+  if (! (used_resources.cpus <= total_resources.cpus) ) cout  << setprecision(17) << used_resources.cpus << " " << total_resources.cpus << endl;
   assert(used_resources <= total_resources);
   if (DEBUG)
     cout << "Using Slave " << slave << ": "
@@ -569,7 +574,7 @@ void AuctionEvent::run(MesosSimulation& sim) {
   const unordered_map<SlaveID, vector<Bid*>>& results = auction.results();
 
   // Stop making auctions, unless something gets sold this round
-  sim.currently_making_offers = false;
+  sim.ready_for_auction = false;
   for (const auto& result : results) {
     size_t slave_id = result.first;
     const vector<Bid*>& winning_bids = result.second;
@@ -579,18 +584,17 @@ void AuctionEvent::run(MesosSimulation& sim) {
 
       Framework& framework = sim.allFrameworks.get(bid->framework_id);
       sim.start_task(slave_id, framework, sim.allTasks.get(bid->task_id), get_time(), bid->current_price);
-      sim.currently_making_offers = true;
+      sim.ready_for_auction = true;
 
     }
   }
 
   // Run auction again in 1 second
-  if (sim.currently_making_offers){
+  if (sim.ready_for_auction){
     cout << sim.get_clock() / 1000000 << " " << sim.used_resources.cpus << " "
        << sim.total_resources.cpus << " " << sim.used_resources.mem << " "
        << sim.total_resources.mem << " " << sim.used_resources.disk << " "
        << sim.total_resources.disk << endl;
-
 
     sim.add_event(new AuctionEvent(get_time() + 1000000));
   }
@@ -614,15 +618,18 @@ void StartTaskEvent::run(MesosSimulation& sim) {
     sim.framework_num_tasks_available[f.id()] += 1;
   }
 
+#if defined(AUCTION)
+  if (!sim.ready_for_auction){
+    sim.add_event(new AuctionEvent( roundUp(this->get_time(), 1000000)));
+    sim.ready_for_auction = true;
+  }
+#else
   //Restart making offers, because this new task may be schedulable
   if(!sim.currently_making_offers) {
     sim.currently_making_offers = true;
-#if defined(AUCTION)
-    sim.add_event(new AuctionEvent( roundUp(this->get_time(), 1000000)));
-#else
     sim.add_event(new OfferEvent( roundUp(this->get_time(), 1000000)));
-#endif
   }
+#endif
 }
 
 void FinishedTaskEvent::run(MesosSimulation& sim) {
@@ -675,16 +682,19 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
     double start = jobs_to_tasks[j_id].second;
     jobs_to_tasks[j_id].second = this->get_time() - start;
   }
-  
+
+#if defined(AUCTION)
+  if(!sim.ready_for_auction){
+    sim.add_event(new AuctionEvent( roundUp(this->get_time(), 1000000)));
+    sim.ready_for_auction = true;
+  }
+#else
   //Restart making offers, in the case that a task can be scheduled now
   if(!sim.currently_making_offers) {
     sim.currently_making_offers = true;
-#if defined(AUCTION)
-    sim.add_event(new AuctionEvent( roundUp(this->get_time(), 1000000)));
-#else
     sim.add_event(new OfferEvent( roundUp(this->get_time(), 1000000)));
-#endif
   }
+#endif
 
 }
 

@@ -10,9 +10,9 @@
 
 #define DEBUG 0
 
-//#define RR
-#define DRF
-//#define AUCTION
+///#define RR
+//#define DRF
+#define AUCTION
 
 typedef size_t SlaveID;
 typedef size_t TaskID;

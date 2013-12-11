@@ -138,9 +138,6 @@ def populate_jobs(samples = float('inf'), filename=None):
 def default_data_source():
     return "task_times_converted.txt"
 
-def main():
-    print_tasks(generate_tasks(populate_jobs(samples=200000), 5, 20000))
-
 def cache_statistics(samples, filename=None):
     if filename is None:
         filename = default_data_source()
@@ -164,7 +161,7 @@ parser = argparse.ArgumentParser(description=helpstring)
 parser.add_argument('num_tasks', metavar='tasks', type=int, help='number of tasks to generate')
 parser.add_argument('num_frameworks', metavar='frameworks', type=int, help='number of frameworks to assign tasks to')
 parser.add_argument('num_users', metavar='users', type=int, help='number of independent threads on each framework')
-parser.add_argument('--samples', metavar='s', type=int, help='number of samples to use to generate statistics [default=200000, max=1000000]', default=200000)
+parser.add_argument('--samples', metavar='s', type=int, help='number of samples to use to generate statistics [default=200000, max=1000000]', default=1000000)
 parser.add_argument('--output', metavar='o', type=str, help='filename to store result [default=synthetic_workload.txt]', default='synthetic_workload.txt')
 parser.add_argument('--input', metavar='i', type=str, help='trace to use as input [default={}]'.format(default_data_source()), default=default_data_source())
 args = parser.parse_args()

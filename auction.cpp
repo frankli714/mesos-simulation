@@ -29,7 +29,7 @@ inline std::ostream& operator<<(std::ostream& o, const Bid& bid) {
 }
 
 double value_of(const Bid& bid){
-    return bid.wtp / (bid.requested_resources.weight() + 0.0000001);
+    return bid.current_price / (bid.requested_resources.weight() + 0.0000001);
 }
 
 inline std::ostream& operator<<(std::ostream& o, const Bid* bid) {
@@ -75,7 +75,10 @@ bool Auction::displace(const Bid& new_bid, vector<Bid*>& displaced_bids,
           << "; starting cost " << total_cost;
   for (const auto& bid : bids) {
     // Pass over your own bids.
-    if (bid->framework_id == new_bid.framework_id) continue;
+    if (bid->framework_id == new_bid.framework_id){
+        VLOG(2) << "Passign over our own bid.";
+        continue;
+    }
 
     // Adjust for reservation price.
     total_cost -= (bid->requested_resources * reservation_price).sum();
