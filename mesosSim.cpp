@@ -561,7 +561,6 @@ void AuctionEvent::run(MesosSimulation& sim) {
   // - bids
   unordered_map<FrameworkID, vector<vector<Bid>>> all_bids;
   for (const Framework& framework : sim.allFrameworks) {
-    VLOG(1) << "Budget of framework " << framework.id() << " is " << framework.budget;
     if (framework.budget < 0) continue;
     vector<vector<Bid>>& bids = all_bids[framework.id()];
     vector<size_t> tasks = framework.eligible_tasks(sim.allTasks, sim.jobs_to_tasks , get_time());
@@ -584,14 +583,10 @@ void AuctionEvent::run(MesosSimulation& sim) {
         bid.task_id = task.id();
         bid.requested_resources = task.used_resources;
 
-        double time_horizon = 1000;
+        double time_horizon = 1000000;
         double effective_income = framework.income - framework.expenses + framework.budget / time_horizon;
-    VLOG(1) << "Income of framework " << framework.id() << " is " << framework.income;
-    VLOG(1) << "Expenses of framework " << framework.id() << " is " << framework.expenses;
-    VLOG(1) << "Effective Income of framework " << framework.id() << " is " << effective_income;
-
           
-        bid.wtp = bid.requested_resources.weight() * min(effective_income / framework.income, (double)100); // FIXME
+        bid.wtp = bid.requested_resources.weight() * effective_income / framework.income;
         bids_for_task.push_back(std::move(bid));
       }
       bids.push_back(std::move(bids_for_task));
@@ -670,7 +665,7 @@ void StartTaskEvent::run(MesosSimulation& sim) {
 
   if (sim.policy == AUCTION){
     if (!sim.ready_for_auction){
-      sim.add_event(new AuctionEvent( roundUp(this->get_time(), 1000000)));
+      sim.add_event(new AuctionEvent( roundUp(this->get_time()+1, 1000000)));
       sim.ready_for_auction = true;
     }
   } else{
