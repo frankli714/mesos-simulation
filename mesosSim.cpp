@@ -102,8 +102,8 @@ class MesosSimulation : public Simulation<MesosSimulation> {
 };
 
 size_t MesosSimulation::round_robin_next_framework = 0;
-const int MesosSimulation::num_slaves = 100;
-const int MesosSimulation::num_frameworks = 397;
+const int MesosSimulation::num_slaves = 8;
+const int MesosSimulation::num_frameworks = 400;
 int MesosSimulation::max_job_id = 0;
 Resources MesosSimulation::total_resources;
 Resources MesosSimulation::used_resources;
@@ -142,16 +142,19 @@ void trace_workload(
     unordered_map<unsigned int, int>& jobs_to_num_tasks,
     MesosSimulation* sim) {
 
+#if defined(AUCTION)
   for (int i = 0; i < num_frameworks; i++) {
     Framework& framework = allFrameworks.add();
     framework.budget = 100;
-    framework.budget_time = 5637000000;
-    framework.budget_increase_rate = 100;
+    framework.budget_time = 0;
+    framework.budget_increase_rate = 0.0000001;
   }
+#endif
 
   string line;
-  ifstream trace("task_times_converted.txt");
+  //ifstream trace("task_times_converted.txt");
   //ifstream trace("short_traces.txt");
+  ifstream trace("synthetic_workload.txt");
   if (trace.is_open()) {
     cout << " IN " << endl;
     int job_vector_index = 0;
@@ -465,6 +468,7 @@ void AuctionEvent::run(MesosSimulation& sim) {
     assert(get_time() >= framework.budget_time);
     framework.budget +=
         (get_time() - framework.budget_time) * framework.budget_increase_rate;
+    framework.budget_time = get_time();
   }
 
   // Collect:
@@ -546,8 +550,8 @@ void AuctionEvent::run(MesosSimulation& sim) {
   // Run auction again in 1 second
   sim.add_event(new AuctionEvent(get_time() + 1000000));
 
-  cerr << "Press Enter to continue..." << endl;
-  cin.get();
+  //cerr << "Press Enter to continue..." << endl;
+  //cin.get();
 }
 
 double roundUp(double curr_time, double increments) {
@@ -570,7 +574,11 @@ void StartTaskEvent::run(MesosSimulation& sim) {
   //Restart making offers, because this new task may be schedulable
   if(!sim.currently_making_offers) {
     sim.currently_making_offers = true;
+#if defined(AUCTION)
+    sim.add_event(new AuctionEvent( roundUp(this->get_time(), 1000000)));
+#else
     sim.add_event(new OfferEvent( roundUp(this->get_time(), 1000000)));
+#endif
   }
 }
 
