@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
+#include <utility>
 #include <sstream>
 #include <iostream>
 #include <algorithm>
@@ -29,8 +30,10 @@ inline std::ostream& operator<<(std::ostream& o, const Bid& bid) {
 }
 
 double value_of(const Bid& bid){
-    return bid.current_price / (bid.requested_resources.weight() + 0.0000001);
+    return bid.wtp / (bid.requested_resources.weight() + 0.0000001);
 }
+
+
 
 inline std::ostream& operator<<(std::ostream& o, const Bid* bid) {
   o << *bid;
@@ -83,9 +86,10 @@ bool Auction::displace(const Bid& new_bid, vector<Bid*>& displaced_bids,
     // Adjust for reservation price.
     total_cost -= (bid->requested_resources * reservation_price).sum();
     // Kick out this bid.
-    total_cost += bid->current_price;
+    total_cost += bid->wtp;
     displaced_bids.push_back(bid);
     freed_resources += bid->requested_resources;
+
     VLOG(2) << "    "
             << "Kicking out " << bid << "; freed resources=" << freed_resources
             << ", cost now " << total_cost;
@@ -101,6 +105,15 @@ bool Auction::displace(const Bid& new_bid, vector<Bid*>& displaced_bids,
     needed_resources;
   return false;
 }
+
+void Auction::maintain_order(size_t slave_id){
+        sort(winning_bids_per_slave[slave_id].begin(),
+             winning_bids_per_slave[slave_id].end(),
+             [](Bid * first, Bid * second) {
+          return value_of(*first) < value_of(*second);
+        });
+}
+
 
 void Auction::run() {
   if (VLOG_IS_ON(1)) {
@@ -182,6 +195,7 @@ void Auction::run() {
         double best_profit = 0;
         Bid* best_bid;
         vector<Bid*> best_displaced_bids;
+        vector<pair<double, vector<Bid*>>> all_displaced_bids;
         bool found_profitable = false;
         int best_bid_index;
 
@@ -191,7 +205,12 @@ void Auction::run() {
           vector<Bid*> displaced_bids;
           double total_cost;
           bool success = displace(bid, displaced_bids, total_cost);
-          if (!success) continue;
+          if (!success){
+              if (total_cost > bid.wtp){
+                  all_displaced_bids.push_back(make_pair(total_cost - bid.wtp, displaced_bids));
+              }
+              continue;
+          }
 
           double profit =
               bid.wtp - total_cost * price_multiplier - min_price_increase;
@@ -206,6 +225,16 @@ void Auction::run() {
 
         // If cheapest way is not profitable, then give up
         if (!found_profitable) {
+
+            for (pair <double, vector<Bid*>> p : all_displaced_bids){
+                for (Bid* bid : p.second){
+                    bid->current_price = max(bid->current_price, bid->wtp - p.first);
+                }
+                if (! p.second.empty()) { 
+                    this->maintain_order(p.second.front()->slave_id);
+                }
+            }
+         
           VLOG(1) << "  " << i << ". found no profitable way";
           continue;
         }
@@ -236,12 +265,7 @@ void Auction::run() {
         // Add this bid to the list of winning bids
         best_bid->winning = true;
         winning_bids_per_slave[best_bid->slave_id].push_back(best_bid);
-        sort(winning_bids_per_slave[best_bid->slave_id].begin(),
-             winning_bids_per_slave[best_bid->slave_id].end(),
-             [](Bid * first, Bid * second) {
-          return value_of(*first) < value_of(*second);
-        });
-
+        this->maintain_order(best_bid->slave_id);
         // Subtract the amount of available resources
         resources[best_bid->slave_id] -= best_bid->requested_resources;
       }

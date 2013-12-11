@@ -20,7 +20,7 @@ vector<size_t> Framework::eligible_tasks(
     if (task_list.size() == 0) continue;
 
     const Task& candidate_task = tasks.get(task_list.front());
-    if (candidate_task.being_run || candidate_task.start_time > current_time)
+    if (candidate_task.being_run || candidate_task.start_time >= current_time)
       continue;
     bool dependencies_met = true;
     for (double j_id : candidate_task.dependencies) {
