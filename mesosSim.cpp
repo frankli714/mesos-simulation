@@ -644,20 +644,17 @@ void StartTaskEvent::run(MesosSimulation& sim) {
     sim.framework_num_tasks_available[f.id()] += 1;
   }
 
-#if defined(AUCTION)
-  if (!sim.ready_for_auction){
+  if (sim.policy == AUCTION){
+      if (!sim.ready_for_auction){
     sim.add_event(new AuctionEvent( roundUp(this->get_time(), 1000000)));
     sim.ready_for_auction = true;
-  }
-#else
+      }
+  } else{
   //Restart making offers, because this new task may be schedulable
-  if(!sim.currently_making_offers) {
-    sim.currently_making_offers = true;
-    if (sim.policy == AUCTION) {
-      sim.add_event(new AuctionEvent( roundUp(this->get_time(), 1000000)));
-    } else {
-      sim.add_event(new OfferEvent( roundUp(this->get_time(), 1000000)));
-    }
+      if(!sim.currently_making_offers) {
+        sim.currently_making_offers = true;
+        sim.add_event(new OfferEvent( roundUp(this->get_time(), 1000000)));
+      }
   }
 }
 
@@ -712,20 +709,16 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
     jobs_to_tasks[j_id].second = this->get_time() - start;
   }
 
-#if defined(AUCTION)
-  if(!sim.ready_for_auction){
-    sim.add_event(new AuctionEvent( roundUp(this->get_time(), 1000000)));
-    sim.ready_for_auction = true;
-  }
-#else
-  //Restart making offers, in the case that a task can be scheduled now
-  if(!sim.currently_making_offers) {
-    sim.currently_making_offers = true;
-    if (sim.policy == AUCTION) {
-      sim.add_event(new AuctionEvent( roundUp(this->get_time(), 1000000)));
-    } else {
-      sim.add_event(new OfferEvent( roundUp(this->get_time(), 1000000)));
-    }
+  if (sim.policy == AUCTION){
+      if(!sim.ready_for_auction){
+        sim.add_event(new AuctionEvent( roundUp(this->get_time(), 1000000)));
+        sim.ready_for_auction = true;
+      }
+  } else{
+      if(!sim.currently_making_offers) {
+        sim.currently_making_offers = true;
+        sim.add_event(new OfferEvent( roundUp(this->get_time(), 1000000)));
+      }
   }
 
 }
