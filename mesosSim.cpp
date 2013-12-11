@@ -106,9 +106,9 @@ class MesosSimulation : public Simulation<MesosSimulation> {
 };
 
 size_t MesosSimulation::round_robin_next_framework = 0;
-const int MesosSimulation::num_slaves = 8;
-const int MesosSimulation::num_special_slaves = 2;
-const int MesosSimulation::num_frameworks = 400;
+const int MesosSimulation::num_slaves = 100;
+const int MesosSimulation::num_special_slaves = 0;
+const int MesosSimulation::num_frameworks = 5;
 Resources MesosSimulation::total_resources;
 Resources MesosSimulation::used_resources;
 
@@ -365,11 +365,11 @@ void MesosSimulation::start_task(
     this->add_event(new FinishedTaskEvent(
         now + task_runtime, task.slave_id, f.id(),
         task.id(), task.job_id));
-
+#if defined(AUCTION)
     this->update_budget(f, now);
     f.expenses += rent;
     task.rent = rent;
-
+#endif
     if (DEBUG) {
       cout << "Slave scheduled: id=" << slave.id()
            << " cpu: " << slave.free_resources.cpus
@@ -497,7 +497,7 @@ void OfferEvent::run_drf(MesosSimulation& sim) {
       already_offered_framework.clear();
     }
 
-    cout << "Making offer to " << next_id << endl;
+//    cout << "Making offer to " << next_id << endl;
     sim.offer_resources(next_id, sim.all_free_resources(), get_time());
   } else {
     sim.currently_making_offers = false;
@@ -607,7 +607,7 @@ double roundUp(double curr_time, double increments) {
 void StartTaskEvent::run(MesosSimulation& sim) {
   double f_id = this->_framework_id;
   Framework& f = sim.allFrameworks[f_id];
-  cout << "Starting task at time " << this->get_time() << " for framework " << f_id << endl;
+//  cout << "Starting task at time " << this->get_time() << " for framework " << f_id << endl;
   if(sim.framework_num_tasks_available.count(f.id()) == 0) {
     sim.framework_num_tasks_available[f.id()] = 1;
   } else {
@@ -631,7 +631,7 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
   auto& allSlaves = sim.allSlaves;
   auto& jobs_to_tasks = sim.jobs_to_tasks;
 
-  cout << "Finishing a task at " << this->get_time() << " for framework " << this->_framework_id << endl;
+//  cout << "Finishing a task at " << this->get_time() << " for framework " << this->_framework_id << endl;
 
   double s_id = this->_slave_id;
   double t_id = this->_task_id;
@@ -646,8 +646,10 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
     cout << "Time is " << sim.get_clock() << " finished_task " << t_id << endl;
   }
   sim.release_resources(slave.id(), task.used_resources);
+#if defined(AUCTION)
   sim.update_budget(framework, get_time());
   framework.expenses -= task.rent;
+#endif
   framework.current_used -= task.used_resources;
   framework.cpu_share = framework.current_used.cpus / sim.total_resources.cpus;
   framework.mem_share = framework.current_used.mem / sim.total_resources.mem;
