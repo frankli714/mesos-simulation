@@ -41,21 +41,21 @@ class AuctionEvent : public Event<MesosSimulation> {
 
 class StartTaskEvent: public Event<MesosSimulation> {
  public:
-   StartTaskEvent(double etime, unsigned int framework_id) 
+   StartTaskEvent(double etime, double framework_id) 
      : Event(etime),
      _framework_id(framework_id) {}
 
    virtual void run(MesosSimulation& sim);
 
  private:
-   unsigned int _framework_id;
+   double _framework_id;
 };
 
 class FinishedTaskEvent : public Event<MesosSimulation> {
  public:
-  FinishedTaskEvent(double etime, unsigned int slave_id,
-                    unsigned int framework_id, unsigned int task_id,
-                    unsigned int job_id)
+  FinishedTaskEvent(double etime, double slave_id,
+                    double framework_id, double task_id,
+                    double job_id)
       : Event(etime),
         _slave_id(slave_id),
         _framework_id(framework_id),
@@ -65,10 +65,10 @@ class FinishedTaskEvent : public Event<MesosSimulation> {
   virtual void run(MesosSimulation& sim);
 
  private:
-  unsigned int _slave_id;
-  unsigned int _framework_id;
-  unsigned int _task_id;
-  unsigned int _job_id;
+  double _slave_id;
+  double _framework_id;
+  double _task_id;
+  double _job_id;
 };
 
 class MesosSimulation : public Simulation<MesosSimulation> {
@@ -88,13 +88,12 @@ class MesosSimulation : public Simulation<MesosSimulation> {
 
   static size_t round_robin_next_framework;
 
-  unordered_map<unsigned int, pair<int, double>> jobs_to_tasks;
-  unordered_map<unsigned int, int> jobs_to_num_tasks;
-  unordered_map<unsigned int, int> framework_num_tasks_available;
+  unordered_map<double, pair<int, double>> jobs_to_tasks;
+  unordered_map<double, int> jobs_to_num_tasks;
+  unordered_map<double, int> framework_num_tasks_available;
 
   static const int num_slaves;
   static const int num_frameworks;
-  static int max_job_id;
 
   static Resources total_resources, used_resources;
 
@@ -104,7 +103,6 @@ class MesosSimulation : public Simulation<MesosSimulation> {
 size_t MesosSimulation::round_robin_next_framework = 0;
 const int MesosSimulation::num_slaves = 100;
 const int MesosSimulation::num_frameworks = 397;
-int MesosSimulation::max_job_id = 0;
 Resources MesosSimulation::total_resources;
 Resources MesosSimulation::used_resources;
 
@@ -136,10 +134,10 @@ void rand_workload(int num_frameworks, int num_jobs, int num_tasks_per_job,
 }
 
 void trace_workload(
-    int num_frameworks, int& max_job_id, Indexer<Framework>& allFrameworks,
+    int num_frameworks, Indexer<Framework>& allFrameworks,
     Indexer<Task>& allTasks,
-    unordered_map<unsigned int, pair<int, double>>& jobs_to_tasks,
-    unordered_map<unsigned int, int>& jobs_to_num_tasks,
+    unordered_map<double, pair<int, double>>& jobs_to_tasks,
+    unordered_map<double, int>& jobs_to_num_tasks,
     MesosSimulation* sim) {
 
   for (int i = 0; i < num_frameworks; i++) {
@@ -150,8 +148,8 @@ void trace_workload(
   }
 
   string line;
-  ifstream trace("task_times_converted.txt");
-  //ifstream trace("short_traces.txt");
+  //ifstream trace("task_times_converted.txt");
+  ifstream trace("short_traces.txt");
   if (trace.is_open()) {
     cout << " IN " << endl;
     int job_vector_index = 0;
@@ -161,18 +159,21 @@ void trace_workload(
       // scheduling_class
       // 6: priority 7: cpu 8: ram 9: disk
       vector<double> split_v = split(line, ' ');
-      if (split_v[0] != last_j_id) {
-        max_job_id++;
-      }
 
       Task& t = allTasks.add();
       t.slave_id = 0;  //Set simply as default
-      t.job_id = max_job_id;
+      t.job_id = split_v[0];
 
       t.used_resources = { split_v[7], split_v[8], split_v[9] };
       t.being_run = false;
       t.task_time = split_v[3] - split_v[2];
       t.start_time = split_v[2];
+      //Adding on dependencies
+      for(int i = 10; i < split_v.size(); i++) {
+        assert(split_v[i] != t.job_id);
+        t.dependencies.push_back(split_v[i]);
+      }
+
       if (t.task_time <= 0) {
         cout << "ERROR IN PROCESSING TASK TIME! " << t.job_id << " "
              << t.start_time << " " << split_v[3] << endl;
@@ -247,7 +248,7 @@ MesosSimulation::MesosSimulation() {
   }
 
   //rand_workload(num_frameworks, 2, 2, allFrameworks, allTasks);
-  trace_workload(num_frameworks, max_job_id, allFrameworks, allTasks,
+  trace_workload(num_frameworks, allFrameworks, allTasks,
                  jobs_to_tasks, jobs_to_num_tasks, this);
   cout << "Done generating workload" << endl;
   set_remaining_tasks(allTasks.size());
@@ -323,7 +324,7 @@ void MesosSimulation::offer_resources(
   Framework& f = allFrameworks[framework_id];
   if (DEBUG) cout << "Framework " << framework_id << endl;
 
-  vector<size_t> eligible_tasks = f.eligible_tasks(allTasks, now);
+  vector<size_t> eligible_tasks = f.eligible_tasks(allTasks, jobs_to_tasks, now);
   for (size_t task_id : eligible_tasks) {
     Task& todo_task = allTasks.get(task_id);
     if (DEBUG) {
@@ -475,7 +476,7 @@ void AuctionEvent::run(MesosSimulation& sim) {
   unordered_map<FrameworkID, vector<vector<Bid>>> all_bids;
   for (const Framework& framework : sim.allFrameworks) {
     vector<vector<Bid>>& bids = all_bids[framework.id()];
-    vector<size_t> tasks = framework.eligible_tasks(sim.allTasks, get_time());
+    vector<size_t> tasks = framework.eligible_tasks(sim.allTasks, sim.jobs_to_tasks , get_time());
 
     for (size_t task_id : tasks) {
       const Task& task = sim.allTasks.get(task_id);
@@ -558,7 +559,7 @@ double roundUp(double curr_time, double increments) {
 }
 
 void StartTaskEvent::run(MesosSimulation& sim) {
-  unsigned int f_id = this->_framework_id;
+  double f_id = this->_framework_id;
   Framework& f = sim.allFrameworks[f_id];
   cout << "Starting task at time " << this->get_time() << " for framework " << f_id << endl;
   if(sim.framework_num_tasks_available.count(f.id()) == 0) {
@@ -582,10 +583,10 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
 
   cout << "Finishing a task at " << this->get_time() << " for framework " << this->_framework_id << endl;
 
-  unsigned int s_id = this->_slave_id;
-  unsigned int t_id = this->_task_id;
-  unsigned int f_id = this->_framework_id;
-  unsigned int j_id = this->_job_id;
+  double s_id = this->_slave_id;
+  double t_id = this->_task_id;
+  double f_id = this->_framework_id;
+  double j_id = this->_job_id;
 
   Slave& slave = allSlaves[s_id];
   Framework& framework = allFrameworks[f_id];
@@ -634,9 +635,10 @@ int main(int argc, char* argv[]) {
   sim.run();
 
   //METRICS: Completion time
-  //unsigned int sum = 0;
+  //double sum = 0;
   cout << "#JOB COMPLETION TIMES" << endl;
   for (const auto& kv : sim.jobs_to_tasks) {
+    //cout << kv.first << endl;
     cout << sim.jobs_to_num_tasks[kv.first] << " " << kv.second.second << endl;
     //sum += it->second.second;
   }
