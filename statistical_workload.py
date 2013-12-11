@@ -78,7 +78,8 @@ def generate_tasks(statistics, frameworks, n):
         job_id += 1
     return result[:n]
 
-def print_tasks(tasks, filename="synthetic_workload.txt"):
+def print_tasks(tasks, filename="synthetic_workload.txt", num_users =1):
+    # hack: we have users*frameworks frameworks, and then only collapse them for printing
     counts = defaultdict(lambda : 0)
     last_job = defaultdict(list)
     current_job = {}
@@ -88,7 +89,7 @@ def print_tasks(tasks, filename="synthetic_workload.txt"):
                 last_job[t['framework']] = [current_job[t['framework']]]
             current_job[t['framework']] = t['job_id']
 # The appearance of task_id is just as a time
-            serialized = [ t['job_id'], counts[t['job_id']], t['task_id'], t['time']+t['task_id'], t['framework'], 0, 0, t['cpu'], t['ram'], t['disk'], 1] + last_job[t['framework']]
+            serialized = [ t['job_id'], counts[t['job_id']], t['task_id'], t['time']+t['task_id'], t['framework'] / num_users, 0, 0, t['cpu'], t['ram'], t['disk'], 1] + last_job[t['framework']]
             counts[t['job_id']] += 1
             f.write(' '.join(str(x) for x in serialized) + '\n')
 
@@ -162,10 +163,11 @@ helpstring += "Output is one task per line, space-separated: jobid, frameworkid,
 parser = argparse.ArgumentParser(description=helpstring)
 parser.add_argument('num_tasks', metavar='tasks', type=int, help='number of tasks to generate')
 parser.add_argument('num_frameworks', metavar='frameworks', type=int, help='number of frameworks to assign tasks to')
+parser.add_argument('num_users', metavar='users', type=int, help='number of independent threads on each framework')
 parser.add_argument('--samples', metavar='s', type=int, help='number of samples to use to generate statistics [default=200000, max=1000000]', default=200000)
 parser.add_argument('--output', metavar='o', type=str, help='filename to store result [default=synthetic_workload.txt]', default='synthetic_workload.txt')
 parser.add_argument('--input', metavar='i', type=str, help='trace to use as input [default={}]'.format(default_data_source()), default=default_data_source())
 args = parser.parse_args()
 
 statistics = cache_statistics(args.samples, args.input)
-print_tasks(generate_tasks(statistics, args.num_frameworks, args.num_tasks), args.output)
+print_tasks(generate_tasks(statistics, args.num_frameworks*args.num_users, args.num_tasks), args.output, num_users=args.num_users)
