@@ -174,7 +174,7 @@ void trace_workload(
   //ifstream trace("short_traces.txt");
   ifstream trace("synthetic_workload.txt");
   if (trace.is_open()) {
-    cout << " IN " << endl;
+//    cout << " IN " << endl;
     int job_vector_index = 0;
     size_t last_j_id = 0;
     while (getline(trace, line)) {
@@ -281,7 +281,7 @@ MesosSimulation::MesosSimulation(int _num_slaves, int _num_special_slaves, int _
   //rand_workload(num_frameworks, 2, 2, allFrameworks, allTasks);
   trace_workload(num_frameworks, allFrameworks, allTasks,
                  jobs_to_tasks, jobs_to_num_tasks, this);
-  cout << "Done generating workload" << endl;
+//  cout << "Done generating workload" << endl;
   set_remaining_tasks(allTasks.size());
 
   //Spot check
@@ -302,7 +302,7 @@ MesosSimulation::MesosSimulation(int _num_slaves, int _num_special_slaves, int _
       sum_size += allFrameworks[i].task_lists[j].size();
     }
   }
-  cout << "DONE " << sum_size << endl;
+//  cout << "DONE " << sum_size << endl;
   //add_event(new OfferEvent(5637000000));
 
   if (DEBUG) {
@@ -471,6 +471,13 @@ void OfferEvent::run(MesosSimulation& sim) {
        << sim.total_resources.cpus << " " << sim.used_resources.mem << " "
        << sim.total_resources.mem << " " << sim.used_resources.disk << " "
        << sim.total_resources.disk << endl;
+/*  size_t idle = 0;
+  for(int i = 0; i < sim.num_frameworks; i++) {
+    vector<size_t> tmp = sim.allFrameworks[i].eligible_tasks(sim.allTasks, sim.jobs_to_tasks, sim.get_clock());
+    idle += tmp.size();
+  }
+  cout << idle << " tasks waiting to be scheduled" << endl;
+*/
 }
 
 void OfferEvent::run_round_robin(MesosSimulation& sim) {
@@ -541,12 +548,12 @@ void AuctionEvent::run(MesosSimulation& sim) {
   // Increment everyone's budget
   for (Framework& framework : sim.allFrameworks) {
     sim.update_budget(framework, get_time());
-  }
-
+  }  
   // Collect:
   // - free resources
   unordered_map<size_t, Resources> free_resources = sim.all_free_resources();
 
+  size_t num_bids = 0;
   // - bids
   unordered_map<FrameworkID, vector<vector<Bid>>> all_bids;
   for (const Framework& framework : sim.allFrameworks) {
@@ -557,7 +564,9 @@ void AuctionEvent::run(MesosSimulation& sim) {
     for (size_t task_id : tasks) {
       const Task& task = sim.allTasks.get(task_id);
       vector<Bid> bids_for_task;
+
       for (const auto& kv : free_resources) {
+        num_bids++;
         const Resources& slave_resources = kv.second;
         if (slave_resources < task.used_resources) {
           continue;
@@ -570,7 +579,8 @@ void AuctionEvent::run(MesosSimulation& sim) {
         bid.task_id = task.id();
         bid.requested_resources = task.used_resources;
 
-        bid.wtp = framework.budget / 10;  // FIXME
+          
+        bid.wtp = framework.income / sim.num_slaves;  // FIXME
         bids_for_task.push_back(std::move(bid));
       }
       bids.push_back(std::move(bids_for_task));
@@ -616,7 +626,14 @@ void AuctionEvent::run(MesosSimulation& sim) {
        << sim.total_resources.cpus << " " << sim.used_resources.mem << " "
        << sim.total_resources.mem << " " << sim.used_resources.disk << " "
        << sim.total_resources.disk << endl;
-
+/*  size_t idle = 0;
+  for(int i = 0; i < sim.num_frameworks; i++) {
+    vector<size_t> tmp = sim.allFrameworks[i].eligible_tasks(sim.allTasks, sim.jobs_to_tasks, sim.get_clock());
+    idle += tmp.size();
+  }
+  cout << idle << " tasks waiting to be scheduled" << endl;
+  cout << num_bids << " bids made this auction" << endl;
+*/
 
     sim.add_event(new AuctionEvent(get_time() + 1000000));
   }
@@ -736,10 +753,10 @@ int main(int argc, char* argv[]) {
 
   //METRICS: Completion time
   //double sum = 0;
-  cout << "#JOB COMPLETION TIMES" << endl;
+//  cout << "#JOB COMPLETION TIMES" << endl;
   for (const auto& kv : sim.jobs_to_tasks) {
     //cout << kv.first << endl;
-    cout << sim.jobs_to_num_tasks[kv.first] << " " << kv.second.second << endl;
+//    cout << sim.jobs_to_num_tasks[kv.first] << " " << kv.second.second << endl;
     //sum += it->second.second;
   }
   //if(DEBUG) cout << "Average job completition time is " <<
