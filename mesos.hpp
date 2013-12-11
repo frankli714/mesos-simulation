@@ -3,9 +3,6 @@
 // Defines classes representing components in Mesos (master, slaves, frameworks,
 // tasks, etc.)
 
-#include <vector>
-#include <unordered_set>
-
 #include "shared.hpp"
 
 #include <deque>
@@ -17,8 +14,8 @@
 struct Task : public Indexable {
   Task() : rent(0), being_run(false) {}
 
-  double slave_id;
-  double job_id;
+  size_t slave_id;
+  size_t job_id;
   Resources used_resources;
   double rent;
   double task_time;
@@ -31,13 +28,8 @@ struct Task : public Indexable {
 class Slave : public Indexable {
  public:
   Slave()
-      : resources({
-    1, 1, 1
-  }),
-        free_resources({
-    1, 1, 1
-  }),
-  special_resource(false) {}
+			: resources({ 0.1, 0.1, 0.1 }),
+				free_resources({ 0.1, 0.1, 0.1 }) {}
   Resources resources;
   std::unordered_set<size_t> curr_tasks;
   Resources free_resources;
@@ -49,9 +41,15 @@ class Framework : public Indexable {
   Framework() : cpu_share(0), mem_share(0), disk_share(0), dominant_share(0) {}
   // Return a list of tasks which we can start running at the current time.
   std::vector<size_t> eligible_tasks(const Indexer<Task>& tasks,
-                                     const std::unordered_map<double, std::pair<int, double>>& jobs_to_tasks,
+                                     const std::unordered_map<size_t, std::pair<int, double>>& jobs_to_tasks,
                                      double current_time) const;
 
+	// Schedule tasks given the following resources.
+	std::vector<size_t> schedule_tasks_with_resources(
+			const Indexer<Task>& tasks,
+			std::unordered_map<size_t, Resources> resources,
+			double current_time);
+	
   std::vector<std::deque<size_t>> task_lists;
   Resources current_used;
 
