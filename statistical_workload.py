@@ -60,7 +60,7 @@ def generate_tasks(statistics, frameworks, n):
         if c > n:
             counts[c] = 0
     result = []
-    job_id = 0
+    job_id = 1
     task_id = 0
     if type(frameworks) == int:
         frameworks = range(frameworks)
@@ -88,7 +88,7 @@ def print_tasks(tasks, filename="synthetic_workload.txt"):
                 last_job[t['framework']] = [current_job[t['framework']]]
             current_job[t['framework']] = t['job_id']
 # The appearance of task_id is just as a time
-            serialized = [ t['job_id'], counts[t['job_id']], t['task_id'], t['time']+t['task_id'], t['framework'], 0, t['cpu'], t['ram'], t['disk']] + last_job[t['framework']]
+            serialized = [ t['job_id'], counts[t['job_id']], t['task_id'], t['time']+t['task_id'], t['framework'], 0, 0, t['cpu'], t['ram'], t['disk'], 1] + last_job[t['framework']]
             counts[t['job_id']] += 1
             f.write(' '.join(str(x) for x in serialized) + '\n')
 
