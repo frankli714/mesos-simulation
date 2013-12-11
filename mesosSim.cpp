@@ -174,94 +174,93 @@ void trace_workload(
   //ifstream trace("task_times_converted.txt");
   //ifstream trace("short_traces.txt");
   ifstream trace(FLAGS_trace);
-  if (trace.is_open()) {
-//    cout << " IN " << endl;
-    int job_vector_index = 0;
-    size_t last_j_id = 0;
-    while (getline(trace, line)) {
-      // 0: job_id 1: task_index 2: start_time 3: end_time 4: framework_id 5:
-      // scheduling_class
-      // 6: priority 7: cpu 8: ram 9: disk
-      vector<double> split_v = split(line, ' ');
+  CHECK(trace.is_open()) << FLAGS_trace << " not opened";
 
-      CHECK_GE(split_v.size(), 11) << "Not enough parts in line.";
-      Task& t = allTasks.add();
-      t.slave_id = 0;  //Set simply as default
-      t.job_id = split_v[0];
+  int job_vector_index = 0;
+  size_t last_j_id = 0;
+  while (getline(trace, line)) {
+    // 0: job_id 1: task_index 2: start_time 3: end_time 4: framework_id 
+    // 5: scheduling_class 6: priority 7: cpu 8: ram 9: disk
+    // 10: special_resource_speedup 11-: dependencies
+    vector<double> split_v = split(line, ' ');
 
-      t.used_resources = { split_v[7], split_v[8], split_v[9] };
-      t.being_run = false;
-      t.task_time = split_v[3] - split_v[2];
-      t.start_time = split_v[2];
-      t.special_resource_speedup = split_v[10];
-      //Adding on dependencies
-      for(int i = 11; i < split_v.size(); i++) {
-        CHECK_NE(split_v[i], t.job_id) << "Self-dependency not allowed";
-        t.dependencies.push_back(split_v[i]);
+    CHECK_GE(split_v.size(), 11) << "Not enough parts in line.";
+    Task& t = allTasks.add();
+    t.slave_id = 0;  //Set simply as default
+    t.job_id = split_v[0];
+
+    t.used_resources = { split_v[7], split_v[8], split_v[9] };
+    t.being_run = false;
+    t.task_time = split_v[3] - split_v[2];
+    t.start_time = split_v[2];
+    t.special_resource_speedup = split_v[10];
+    //Adding on dependencies
+    for(int i = 11; i < split_v.size(); i++) {
+      CHECK_NE(split_v[i], t.job_id) << "Self-dependency not allowed";
+      t.dependencies.push_back(split_v[i]);
+    }
+
+    if (t.task_time <= 0) {
+      cout << "ERROR IN PROCESSING TASK TIME! " << t.job_id << " "
+           << t.start_time << " " << split_v[3] << endl;
+      exit(EXIT_FAILURE);
+    }
+
+    Framework& f = allFrameworks[(int) split_v[4]];
+    CHECK_EQ(f.id(), split_v[4]) << "Frameworks did not appear in order";
+    //Create event for the start time of each task, so we know a new task is
+    //eligible for a particular framework
+    sim->add_event(new StartTaskEvent(t.start_time, f.id()));
+
+    if (split_v[0] != last_j_id) {
+      last_j_id = split_v[0];
+      job_vector_index = f.task_lists.size();
+      deque<size_t> q;
+      q.push_back(t.id());
+      f.task_lists.push_back(q);
+      jobs_to_tasks[t.job_id] = make_pair(1, t.start_time);
+      jobs_to_num_tasks[t.job_id] = 1;
+
+    } else {
+      jobs_to_tasks[t.job_id].first += 1;
+      jobs_to_num_tasks[t.job_id] += 1;
+
+      if (t.start_time < jobs_to_tasks[t.job_id].second)
+        jobs_to_tasks[t.job_id].second = t.start_time;
+      int i;
+      for (i = job_vector_index; i < f.task_lists.size(); i++) {
+        bool has_intersection = false;
+        for (int j = 0; j < f.task_lists[i].size(); j++) {
+          const Task& cmp_task = allTasks[f.task_lists[i][j]];
+          has_intersection = intersect(
+              t.start_time, t.start_time + t.task_time, cmp_task.start_time,
+              cmp_task.start_time + cmp_task.task_time);
+          if (has_intersection) break;
+        }
+        if (!has_intersection) {
+          if (DEBUG) cout << "No intersections! " << line << endl;
+          int j;
+          for (j = 0; j < f.task_lists[i].size(); j++) {
+            if (t.start_time + t.task_time <
+                allTasks[f.task_lists[i][j]].start_time) {
+              f.task_lists[i].insert(f.task_lists[i].begin() + j, t.id());
+              break;
+            }
+          }
+          if (j == f.task_lists[i].size()) {
+            f.task_lists[i].push_back(t.id());
+          }
+          break;
+        }
       }
-
-      if (t.task_time <= 0) {
-        cout << "ERROR IN PROCESSING TASK TIME! " << t.job_id << " "
-             << t.start_time << " " << split_v[3] << endl;
-        exit(EXIT_FAILURE);
-      }
-
-      Framework& f = allFrameworks[(int) split_v[4]];
-      CHECK_EQ(f.id(), split_v[4]) << "Frameworks did not appear in order";
-      //Create event for the start time of each task, so we know a new task is
-      //eligible for a particular framework
-      sim->add_event(new StartTaskEvent(t.start_time, f.id()));
-
-      if (split_v[0] != last_j_id) {
-        last_j_id = split_v[0];
-        job_vector_index = f.task_lists.size();
+      if (i == f.task_lists.size()) {
         deque<size_t> q;
         q.push_back(t.id());
         f.task_lists.push_back(q);
-        jobs_to_tasks[t.job_id] = make_pair(1, t.start_time);
-        jobs_to_num_tasks[t.job_id] = 1;
-
-      } else {
-        jobs_to_tasks[t.job_id].first += 1;
-        jobs_to_num_tasks[t.job_id] += 1;
-
-        if (t.start_time < jobs_to_tasks[t.job_id].second)
-          jobs_to_tasks[t.job_id].second = t.start_time;
-        int i;
-        for (i = job_vector_index; i < f.task_lists.size(); i++) {
-          bool has_intersection = false;
-          for (int j = 0; j < f.task_lists[i].size(); j++) {
-            const Task& cmp_task = allTasks[f.task_lists[i][j]];
-            has_intersection = intersect(
-                t.start_time, t.start_time + t.task_time, cmp_task.start_time,
-                cmp_task.start_time + cmp_task.task_time);
-            if (has_intersection) break;
-          }
-          if (!has_intersection) {
-            if (DEBUG) cout << "No intersections! " << line << endl;
-            int j;
-            for (j = 0; j < f.task_lists[i].size(); j++) {
-              if (t.start_time + t.task_time <
-                  allTasks[f.task_lists[i][j]].start_time) {
-                f.task_lists[i].insert(f.task_lists[i].begin() + j, t.id());
-                break;
-              }
-            }
-            if (j == f.task_lists[i].size()) {
-              f.task_lists[i].push_back(t.id());
-            }
-            break;
-          }
-        }
-        if (i == f.task_lists.size()) {
-          deque<size_t> q;
-          q.push_back(t.id());
-          f.task_lists.push_back(q);
-        }
       }
     }
-    trace.close();
   }
+  trace.close();
 }
 
 MesosSimulation::MesosSimulation(int _num_slaves, int _num_special_slaves, int _num_frameworks, Policy _policy)
