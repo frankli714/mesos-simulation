@@ -13,6 +13,9 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include <glog/logging.h>
+#include <gflags/gflags.h>
+
 #include "auction.hpp"
 #include "shared.hpp"
 #include "simulation.hpp"
@@ -42,21 +45,21 @@ class AuctionEvent : public Event<MesosSimulation> {
 
 class StartTaskEvent: public Event<MesosSimulation> {
  public:
-   StartTaskEvent(double etime, double framework_id) 
+   StartTaskEvent(double etime, size_t framework_id) 
      : Event(etime),
      _framework_id(framework_id) {}
 
    virtual void run(MesosSimulation& sim);
 
  private:
-   double _framework_id;
+   size_t _framework_id;
 };
 
 class FinishedTaskEvent : public Event<MesosSimulation> {
  public:
-  FinishedTaskEvent(double etime, double slave_id,
-                    double framework_id, double task_id,
-                    double job_id)
+  FinishedTaskEvent(double etime, size_t slave_id,
+                    size_t framework_id, size_t task_id,
+                    size_t job_id)
       : Event(etime),
         _slave_id(slave_id),
         _framework_id(framework_id),
@@ -66,15 +69,23 @@ class FinishedTaskEvent : public Event<MesosSimulation> {
   virtual void run(MesosSimulation& sim);
 
  private:
-  double _slave_id;
-  double _framework_id;
-  double _task_id;
-  double _job_id;
+  size_t _slave_id;
+  size_t _framework_id;
+  size_t _task_id;
+  size_t _job_id;
+};
+
+enum Policy {
+  ROUND_ROBIN,
+  DRF,
+  AUCTION
 };
 
 class MesosSimulation : public Simulation<MesosSimulation> {
  public:
-  MesosSimulation();
+  MesosSimulation(
+      int _num_slaves, int _num_special_slaves,
+      int _num_frameworks, Policy _policy);
 
   void use_resources(size_t slave, const Resources& resources);
   void release_resources(size_t slave, const Resources& resources);
@@ -90,29 +101,31 @@ class MesosSimulation : public Simulation<MesosSimulation> {
   Indexer<Slave> allSlaves;
   Indexer<Framework> allFrameworks;
   Indexer<Task> allTasks;
-  
-  static size_t round_robin_next_framework;
 
-  unordered_map<double, pair<int, double>> jobs_to_tasks;
-  unordered_map<double, int> jobs_to_num_tasks;
-  unordered_map<double, int> framework_num_tasks_available;
+  Policy policy;
+  size_t round_robin_next_framework = 0;
 
-  static const int num_slaves;
-  static const int num_special_slaves;
-  static const int num_frameworks;
+  unordered_map<size_t, pair<int, double>> jobs_to_tasks;
+  unordered_map<size_t, int> jobs_to_num_tasks;
+  unordered_map<size_t, int> framework_num_tasks_available;
+
+  const int num_slaves;
+  const int num_special_slaves;
+  const int num_frameworks;
 
   static Resources total_resources, used_resources;
 
   bool ready_for_auction;
   bool currently_making_offers;
 };
-
-size_t MesosSimulation::round_robin_next_framework = 0;
-const int MesosSimulation::num_slaves = 10;
-const int MesosSimulation::num_special_slaves = 0;
-const int MesosSimulation::num_frameworks = 5;
 Resources MesosSimulation::total_resources;
 Resources MesosSimulation::used_resources;
+
+DEFINE_int32(num_slaves, 10, "Number of slaves in simulation.");
+DEFINE_int32(num_special_slaves, 0, "Number of special slaves in simulation");
+DEFINE_int32(num_frameworks, 5, "Number of frameworks.");
+DEFINE_string(policy, "drf", 
+    "Resource allocation policy. One of roundrobin, drf, auction.");
 
 // Functions handling events
 void run_auction(const Event<MesosSimulation>& e);
@@ -144,17 +157,18 @@ void rand_workload(int num_frameworks, int num_jobs, int num_tasks_per_job,
 void trace_workload(
     int num_frameworks, Indexer<Framework>& allFrameworks,
     Indexer<Task>& allTasks,
-    unordered_map<double, pair<int, double>>& jobs_to_tasks,
-    unordered_map<double, int>& jobs_to_num_tasks,
+    unordered_map<size_t, pair<int, double>>& jobs_to_tasks,
+    unordered_map<size_t, int>& jobs_to_num_tasks,
     MesosSimulation* sim) {
 
   for (int i = 0; i < num_frameworks; i++) {
     Framework& framework = allFrameworks.add();
-#if defined(AUCTION)
-    framework.budget = sim->num_slaves * 100.000 / num_frameworks;
-    framework.budget_time = 0;
-    framework.income = sim->num_slaves * 1.0 / num_frameworks;
-#endif
+
+    if (sim->policy == AUCTION) {
+      framework.budget = sim->num_slaves * 100.000 / num_frameworks;
+      framework.budget_time = 0;
+      framework.income = sim->num_slaves * 1.0 / num_frameworks;
+    }
   }
 
   string line;
@@ -164,7 +178,7 @@ void trace_workload(
   if (trace.is_open()) {
     cout << " IN " << endl;
     int job_vector_index = 0;
-    double last_j_id = 0;
+    size_t last_j_id = 0;
     while (getline(trace, line)) {
       // 0: job_id 1: task_index 2: start_time 3: end_time 4: framework_id 5:
       // scheduling_class
@@ -251,7 +265,9 @@ void trace_workload(
   }
 }
 
-MesosSimulation::MesosSimulation() {
+MesosSimulation::MesosSimulation(int _num_slaves, int _num_special_slaves, int _num_frameworks, Policy _policy)
+  : num_slaves(_num_slaves), num_special_slaves(_num_special_slaves),
+    num_frameworks(_num_frameworks), policy(_policy) {
   currently_making_offers = false;
   ready_for_auction = true;
 
@@ -370,11 +386,12 @@ void MesosSimulation::start_task(
     this->add_event(new FinishedTaskEvent(
         now + task_runtime, task.slave_id, f.id(),
         task.id(), task.job_id));
-#if defined(AUCTION)
-    this->update_budget(f, now);
-    f.expenses += rent;
-    task.rent = rent;
-#endif
+
+    if (policy == AUCTION) {
+      this->update_budget(f, now);
+      f.expenses += rent;
+      task.rent = rent;
+    }
     if (DEBUG) {
       cout << "Slave scheduled: id=" << slave.id()
            << " cpu: " << slave.free_resources.cpus
@@ -386,6 +403,15 @@ void MesosSimulation::start_task(
 void MesosSimulation::offer_resources(
     size_t framework_id, unordered_map<size_t, Resources> resources,
     double now) {
+  cerr << "Framework " << framework_id << " offered:" << endl;
+  vector<size_t> slaves;
+  for (const auto& kv : resources) {
+    slaves.push_back(kv.first);
+  }
+  sort(slaves.begin(), slaves.end());
+  for (size_t slave_id : slaves) {
+    cerr << "  slave " << slave_id << ": " << resources[slave_id] << endl;
+  }
 
   Framework& f = allFrameworks[framework_id];
   if (DEBUG) cout << "Framework " << framework_id << endl;
@@ -435,11 +461,11 @@ void OfferEvent::run(MesosSimulation& sim) {
   if (DEBUG)
     cout << "Time is " << sim.get_clock() << " process_offer function" << endl;
 
-#if defined RR
-  run_round_robin(sim);
-#elif defined DRF
-  run_drf(sim);
-#endif
+  if (sim.policy == ROUND_ROBIN) {
+    run_round_robin(sim);
+  } else if (sim.policy == DRF) {
+    run_drf(sim);
+  }
   // Offer again in 1 second if we should be making offers anyways
   if (sim.currently_making_offers)
     sim.add_event(new OfferEvent(this->get_time() + 1000000));
@@ -627,9 +653,12 @@ void StartTaskEvent::run(MesosSimulation& sim) {
   //Restart making offers, because this new task may be schedulable
   if(!sim.currently_making_offers) {
     sim.currently_making_offers = true;
-    sim.add_event(new OfferEvent( roundUp(this->get_time(), 1000000)));
+    if (sim.policy == AUCTION) {
+      sim.add_event(new AuctionEvent( roundUp(this->get_time(), 1000000)));
+    } else {
+      sim.add_event(new OfferEvent( roundUp(this->get_time(), 1000000)));
+    }
   }
-#endif
 }
 
 void FinishedTaskEvent::run(MesosSimulation& sim) {
@@ -653,10 +682,10 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
     cout << "Time is " << sim.get_clock() << " finished_task " << t_id << endl;
   }
   sim.release_resources(slave.id(), task.used_resources);
-#if defined(AUCTION)
-  sim.update_budget(framework, get_time());
-  framework.expenses -= task.rent;
-#endif
+  if (sim.policy == AUCTION) {
+    sim.update_budget(framework, get_time());
+    framework.expenses -= task.rent;
+  }
   framework.current_used -= task.used_resources;
   framework.cpu_share = framework.current_used.cpus / sim.total_resources.cpus;
   framework.mem_share = framework.current_used.mem / sim.total_resources.mem;
@@ -692,14 +721,33 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
   //Restart making offers, in the case that a task can be scheduled now
   if(!sim.currently_making_offers) {
     sim.currently_making_offers = true;
-    sim.add_event(new OfferEvent( roundUp(this->get_time(), 1000000)));
+    if (sim.policy == AUCTION) {
+      sim.add_event(new AuctionEvent( roundUp(this->get_time(), 1000000)));
+    } else {
+      sim.add_event(new OfferEvent( roundUp(this->get_time(), 1000000)));
+    }
   }
-#endif
 
 }
 
 int main(int argc, char* argv[]) {
-  MesosSimulation sim;
+  google::ParseCommandLineFlags(&argc, &argv, true);
+  google::InitGoogleLogging(argv[0]);
+  FLAGS_logtostderr = true;
+
+  Policy policy;
+  if (FLAGS_policy == "roundrobin") {
+    policy = ROUND_ROBIN;
+  } else if (FLAGS_policy == "drf") {
+    policy = DRF;
+  } else if (FLAGS_policy == "auction") {
+    policy = AUCTION;
+  } else {
+    LOG(FATAL) << "Inavlid --policy: " << FLAGS_policy;
+  }
+
+  MesosSimulation sim(
+      FLAGS_num_slaves, FLAGS_num_special_slaves, FLAGS_num_frameworks, policy);
   sim.run();
 
   //METRICS: Completion time

@@ -10,9 +10,10 @@ using namespace std;
 // We can run all jobs in parallel.
 // We can only run tasks if their start time has passed.
 // TODO: revise this
-vector<size_t> Framework::eligible_tasks(const Indexer<Task>& tasks,
-                                         const unordered_map<double, pair<int, double>>& jobs_to_tasks,
-                                         double current_time) const {
+vector<size_t> Framework::eligible_tasks(
+    const Indexer<Task>& tasks,
+    const unordered_map<size_t, pair<int, double>>& jobs_to_tasks,
+    double current_time) const {
   vector<size_t> result;
 
   for (const deque<size_t>& task_list : task_lists) {
