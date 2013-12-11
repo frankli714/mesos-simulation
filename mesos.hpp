@@ -11,14 +11,17 @@
 #include <deque>
 #include <vector>
 #include <unordered_set>
+#include <unordered_map>
+#include <utility>
 
 struct Task : public Indexable {
-  unsigned int slave_id;
-  unsigned int job_id;
+  double slave_id;
+  double job_id;
   Resources used_resources;
   double task_time;
   double start_time;
   bool being_run;
+  std::vector<double> dependencies;
 };
 
 class Slave : public Indexable {
@@ -40,6 +43,7 @@ class Framework : public Indexable {
   Framework() : cpu_share(0), mem_share(0), disk_share(0), dominant_share(0) {}
   // Return a list of tasks which we can start running at the current time.
   std::vector<size_t> eligible_tasks(const Indexer<Task>& tasks,
+                                     const std::unordered_map<double, std::pair<int, double>>& jobs_to_tasks,
                                      double current_time) const;
 
   std::vector<std::deque<size_t>> task_lists;
