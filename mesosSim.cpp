@@ -93,6 +93,7 @@ class MesosSimulation : public Simulation<MesosSimulation> {
   unordered_map<double, int> framework_num_tasks_available;
 
   static const int num_slaves;
+  static const int num_special_slaves;
   static const int num_frameworks;
 
   static Resources total_resources, used_resources;
@@ -102,6 +103,7 @@ class MesosSimulation : public Simulation<MesosSimulation> {
 
 size_t MesosSimulation::round_robin_next_framework = 0;
 const int MesosSimulation::num_slaves = 100;
+const int MesosSimulation::num_special_slaves = 10;
 const int MesosSimulation::num_frameworks = 397;
 Resources MesosSimulation::total_resources;
 Resources MesosSimulation::used_resources;
@@ -160,6 +162,7 @@ void trace_workload(
       // 6: priority 7: cpu 8: ram 9: disk
       vector<double> split_v = split(line, ' ');
 
+      assert(split_v.size() >= 11);
       Task& t = allTasks.add();
       t.slave_id = 0;  //Set simply as default
       t.job_id = split_v[0];
@@ -168,8 +171,9 @@ void trace_workload(
       t.being_run = false;
       t.task_time = split_v[3] - split_v[2];
       t.start_time = split_v[2];
+      t.prefers_special_resource = (bool) split_v[10];
       //Adding on dependencies
-      for(int i = 10; i < split_v.size(); i++) {
+      for(int i = 11; i < split_v.size(); i++) {
         assert(split_v[i] != t.job_id);
         t.dependencies.push_back(split_v[i]);
       }
@@ -241,10 +245,14 @@ void trace_workload(
 MesosSimulation::MesosSimulation() {
   currently_making_offers = false;
 
+  assert(num_slaves >= num_special_slaves);
   // lets initialize slave state and the event queue
   for (int i = 0; i < num_slaves; i++) {
     allSlaves.add();
     total_resources += allSlaves[i].resources;
+  }
+  for(int i = num_slaves - num_special_slaves; i < num_slaves; i++) {
+    allSlaves[i].special_resource = true;
   }
 
   //rand_workload(num_frameworks, 2, 2, allFrameworks, allTasks);
@@ -333,12 +341,27 @@ void MesosSimulation::offer_resources(
            << todo_task.used_resources.mem << " being_run "
            << todo_task.being_run << endl;
     }
+    bool available_special_slave = false;
+    if (todo_task.prefers_special_resource) {
+      for (auto& kv : resources) {
+        const size_t slave_id = kv.first;
+        Resources& slave_resources = kv.second;
+        Slave& slave = allSlaves.get(slave_id);
+        if (!slave.special_resource) continue;
+        if (slave_resources >= todo_task.used_resources) {
+          available_special_slave = true;
+          break;
+        }
+      }
+    }
 
     for (auto& kv : resources) {
       const size_t slave_id = kv.first;
       Resources& slave_resources = kv.second;
       Slave& slave = allSlaves.get(slave_id);
-
+      if(available_special_slave && !slave.special_resource) continue;
+        
+      
       if (slave_resources >= todo_task.used_resources) {
         if (DEBUG) cout << "Should schedule" << endl;
         todo_task.slave_id = slave_id;
@@ -363,10 +386,10 @@ void MesosSimulation::offer_resources(
           framework_num_tasks_available.erase(f.id());
           assert(framework_num_tasks_available.count(f.id()) == 0);
         }
-
+        
         slave.curr_tasks.insert(todo_task.id());
         this->add_event(new FinishedTaskEvent(
-            now + todo_task.task_time, todo_task.slave_id, framework_id,
+            now + todo_task.task_time * ( 1 - slave.special_resource * 0.2), todo_task.slave_id, framework_id,
             todo_task.id(), todo_task.job_id));
 
         if (DEBUG) {

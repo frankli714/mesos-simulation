@@ -21,6 +21,7 @@ struct Task : public Indexable {
   double task_time;
   double start_time;
   bool being_run;
+  bool prefers_special_resource;
   std::vector<double> dependencies;
 };
 
@@ -32,10 +33,12 @@ class Slave : public Indexable {
   }),
         free_resources({
     1, 1, 1
-  }) {}
+  }),
+  special_resource(false) {}
   Resources resources;
   std::unordered_set<size_t> curr_tasks;
   Resources free_resources;
+  bool special_resource;
 };
 
 class Framework : public Indexable {
