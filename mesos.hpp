@@ -28,8 +28,8 @@ struct Task : public Indexable {
 class Slave : public Indexable {
  public:
   Slave()
-			: resources({ 0.1, 0.1, 0.1 }),
-				free_resources({ 0.1, 0.1, 0.1 }) {}
+			: resources({ 1, 1, 1 }),
+				free_resources({ 1, 1, 1 }) {}
   Resources resources;
   std::unordered_set<size_t> curr_tasks;
   Resources free_resources;

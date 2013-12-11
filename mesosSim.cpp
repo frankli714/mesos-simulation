@@ -102,7 +102,7 @@ class MesosSimulation : public Simulation<MesosSimulation> {
   Indexer<Task> allTasks;
 
   Policy policy;
-  size_t round_robin_next_framework = 0;
+  size_t round_robin_next_framework;
 
   unordered_map<size_t, pair<int, double>> jobs_to_tasks;
   unordered_map<size_t, int> jobs_to_num_tasks;
@@ -268,6 +268,7 @@ MesosSimulation::MesosSimulation(int _num_slaves, int _num_special_slaves, int _
   currently_making_offers = false;
 
   CHECK_GE(num_slaves, num_special_slaves);
+  round_robin_next_framework = 0;
   // lets initialize slave state and the event queue
   for (int i = 0; i < num_slaves; i++) {
     allSlaves.add();
@@ -399,14 +400,14 @@ void MesosSimulation::start_task(
 void MesosSimulation::offer_resources(
     size_t framework_id, unordered_map<size_t, Resources> resources,
     double now) {
-  cerr << "Framework " << framework_id << " offered:" << endl;
+//  cerr << "Framework " << framework_id << " offered:" << endl;
   vector<size_t> slaves;
   for (const auto& kv : resources) {
     slaves.push_back(kv.first);
   }
   sort(slaves.begin(), slaves.end());
   for (size_t slave_id : slaves) {
-    cerr << "  slave " << slave_id << ": " << resources[slave_id] << endl;
+//    cerr << "  slave " << slave_id << ": " << resources[slave_id] << endl;
   }
 
   Framework& f = allFrameworks[framework_id];
@@ -580,8 +581,7 @@ void AuctionEvent::run(MesosSimulation& sim) {
         bid.task_id = task.id();
         bid.requested_resources = task.used_resources;
 
-          
-        bid.wtp = framework.income / sim.num_slaves;  // FIXME
+        bid.wtp = bid.requested_resources.cpus;  // FIXME    
         bids_for_task.push_back(std::move(bid));
       }
       bids.push_back(std::move(bids_for_task));
