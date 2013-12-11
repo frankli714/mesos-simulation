@@ -106,7 +106,7 @@ class MesosSimulation : public Simulation<MesosSimulation> {
 };
 
 size_t MesosSimulation::round_robin_next_framework = 0;
-const int MesosSimulation::num_slaves = 100;
+const int MesosSimulation::num_slaves = 10;
 const int MesosSimulation::num_special_slaves = 0;
 const int MesosSimulation::num_frameworks = 5;
 Resources MesosSimulation::total_resources;
