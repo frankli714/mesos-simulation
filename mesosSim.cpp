@@ -413,6 +413,7 @@ void MesosSimulation::offer_resources(
       Resources& slave_resources = kv.second;
       Slave& slave = allSlaves.get(slave_id);
       if(available_special_slave && !slave.special_resource) continue;
+        
       
       if (slave_resources >= todo_task.used_resources) {
         start_task(slave_id, f, todo_task, now);
