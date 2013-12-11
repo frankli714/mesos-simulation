@@ -6,10 +6,13 @@
 #include <vector>
 #include <sstream>
 
+#define cpuperram 0.5
+
 #define DEBUG 0
 
 //#define RR
-#define DRF
+//#define DRF
+#define AUCTION
 
 typedef size_t SlaveID;
 typedef size_t TaskID;
@@ -46,6 +49,8 @@ struct Resources {
     result.disk = std::max(other.disk - disk, 0.);
     return result;
   }
+
+  double weight() const { return cpus + mem * cpuperram; }
 
   bool zero() const { return cpus == 0 && mem == 0 && disk == 0; }
 

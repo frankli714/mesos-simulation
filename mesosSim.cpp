@@ -101,11 +101,8 @@ class MesosSimulation : public Simulation<MesosSimulation> {
 };
 
 size_t MesosSimulation::round_robin_next_framework = 0;
-const int MesosSimulation::num_slaves = 100;
-const int MesosSimulation::num_frameworks = 397;
 const int MesosSimulation::num_slaves = 8;
 const int MesosSimulation::num_frameworks = 400;
-int MesosSimulation::max_job_id = 0;
 Resources MesosSimulation::total_resources;
 Resources MesosSimulation::used_resources;
 
@@ -148,7 +145,7 @@ void trace_workload(
     Framework& framework = allFrameworks.add();
     framework.budget = 100;
     framework.budget_time = 0;
-    framework.budget_increase_rate = 0.0000001;
+    framework.budget_increase_rate = 0.000001;
   }
 #endif
 
@@ -513,7 +510,7 @@ void AuctionEvent::run(MesosSimulation& sim) {
   // - reservation prices
   Resources reservation_price(10, 10, 10);
   // - minimum price increase
-  double min_price_increase = 1;
+  double min_price_increase = 0.1;
   // - price multiplier
   double price_multiplier = 1.1;
 

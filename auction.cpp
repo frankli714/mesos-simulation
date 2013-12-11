@@ -28,6 +28,10 @@ inline std::ostream& operator<<(std::ostream& o, const Bid& bid) {
   return o;
 }
 
+double value_of(const Bid& bid){
+    return bid.wtp / (bid.requested_resources.weight() + 0.0000001);
+}
+
 inline std::ostream& operator<<(std::ostream& o, const Bid* bid) {
   o << *bid;
   return o;
@@ -232,7 +236,7 @@ void Auction::run() {
         sort(winning_bids_per_slave[best_bid->slave_id].begin(),
              winning_bids_per_slave[best_bid->slave_id].end(),
              [](Bid * first, Bid * second) {
-          return first->current_price < second->current_price;
+          return value_of(*first) < value_of(*second);
         });
 
         // Subtract the amount of available resources
