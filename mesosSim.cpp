@@ -176,7 +176,7 @@ void trace_workload(
   //ifstream trace("short_traces.txt");
   ifstream trace("synthetic_workload.txt");
   if (trace.is_open()) {
-    cout << " IN " << endl;
+//    cout << " IN " << endl;
     int job_vector_index = 0;
     size_t last_j_id = 0;
     while (getline(trace, line)) {
@@ -269,7 +269,7 @@ MesosSimulation::MesosSimulation(int _num_slaves, int _num_special_slaves, int _
   : num_slaves(_num_slaves), num_special_slaves(_num_special_slaves),
     num_frameworks(_num_frameworks), policy(_policy) {
   currently_making_offers = false;
-  ready_for_auction = true;
+  ready_for_auction = false;
 
   assert(num_slaves >= num_special_slaves);
   // lets initialize slave state and the event queue
@@ -284,7 +284,7 @@ MesosSimulation::MesosSimulation(int _num_slaves, int _num_special_slaves, int _
   //rand_workload(num_frameworks, 2, 2, allFrameworks, allTasks);
   trace_workload(num_frameworks, allFrameworks, allTasks,
                  jobs_to_tasks, jobs_to_num_tasks, this);
-  cout << "Done generating workload" << endl;
+//  cout << "Done generating workload" << endl;
   set_remaining_tasks(allTasks.size());
 
   //Spot check
@@ -305,7 +305,7 @@ MesosSimulation::MesosSimulation(int _num_slaves, int _num_special_slaves, int _
       sum_size += allFrameworks[i].task_lists[j].size();
     }
   }
-  cout << "DONE " << sum_size << endl;
+//  cout << "DONE " << sum_size << endl;
   //add_event(new OfferEvent(5637000000));
 
   if (DEBUG) {
@@ -320,7 +320,6 @@ MesosSimulation::MesosSimulation(int _num_slaves, int _num_special_slaves, int _
 void MesosSimulation::use_resources(size_t slave, const Resources& resources) {
   allSlaves[slave].free_resources -= resources;
   used_resources += resources;
-  cout << "Used resources = " << used_resources << "; total resources = " << total_resources << endl;
   if (! (used_resources.cpus <= total_resources.cpus) ) cout  << setprecision(17) << used_resources.cpus << " " << total_resources.cpus << endl;
   assert(used_resources <= total_resources);
   if (DEBUG)
@@ -476,6 +475,13 @@ void OfferEvent::run(MesosSimulation& sim) {
        << sim.total_resources.cpus << " " << sim.used_resources.mem << " "
        << sim.total_resources.mem << " " << sim.used_resources.disk << " "
        << sim.total_resources.disk << endl;
+/*  size_t idle = 0;
+  for(int i = 0; i < sim.num_frameworks; i++) {
+    vector<size_t> tmp = sim.allFrameworks[i].eligible_tasks(sim.allTasks, sim.jobs_to_tasks, sim.get_clock());
+    idle += tmp.size();
+  }
+  cout << idle << " tasks waiting to be scheduled" << endl;
+*/
 }
 
 void OfferEvent::run_round_robin(MesosSimulation& sim) {
@@ -546,15 +552,16 @@ void AuctionEvent::run(MesosSimulation& sim) {
   // Increment everyone's budget
   for (Framework& framework : sim.allFrameworks) {
     sim.update_budget(framework, get_time());
-  }
-
+  }  
   // Collect:
   // - free resources
   unordered_map<size_t, Resources> free_resources = sim.all_free_resources();
 
+  size_t num_bids = 0;
   // - bids
   unordered_map<FrameworkID, vector<vector<Bid>>> all_bids;
   for (const Framework& framework : sim.allFrameworks) {
+    VLOG(1) << "Budget of framework " << framework.id() << " is " << framework.budget;
     if (framework.budget < 0) continue;
     vector<vector<Bid>>& bids = all_bids[framework.id()];
     vector<size_t> tasks = framework.eligible_tasks(sim.allTasks, sim.jobs_to_tasks , get_time());
@@ -562,7 +569,9 @@ void AuctionEvent::run(MesosSimulation& sim) {
     for (size_t task_id : tasks) {
       const Task& task = sim.allTasks.get(task_id);
       vector<Bid> bids_for_task;
+
       for (const auto& kv : free_resources) {
+        num_bids++;
         const Resources& slave_resources = kv.second;
         if (slave_resources < task.used_resources) {
           continue;
@@ -575,7 +584,14 @@ void AuctionEvent::run(MesosSimulation& sim) {
         bid.task_id = task.id();
         bid.requested_resources = task.used_resources;
 
-        bid.wtp = framework.budget / 10;  // FIXME
+        double time_horizon = 1000;
+        double effective_income = framework.income - framework.expenses + framework.budget / time_horizon;
+    VLOG(1) << "Income of framework " << framework.id() << " is " << framework.income;
+    VLOG(1) << "Expenses of framework " << framework.id() << " is " << framework.expenses;
+    VLOG(1) << "Effective Income of framework " << framework.id() << " is " << effective_income;
+
+          
+        bid.wtp = bid.requested_resources.weight() * min(effective_income / framework.income, (double)100); // FIXME
         bids_for_task.push_back(std::move(bid));
       }
       bids.push_back(std::move(bids_for_task));
@@ -587,7 +603,7 @@ void AuctionEvent::run(MesosSimulation& sim) {
   // - reservation prices
   Resources reservation_price(0.1, 0.05, 0.01);
   // - minimum price increase
-  double min_price_increase = 0.001;
+  double min_price_increase = 0;
   // - price multiplier
   double price_multiplier = 1.1;
 
@@ -614,13 +630,21 @@ void AuctionEvent::run(MesosSimulation& sim) {
 
     }
   }
-
-  // Run auction again in 1 second
-  if (sim.ready_for_auction){
     cout << sim.get_clock() / 1000000 << " " << sim.used_resources.cpus << " "
        << sim.total_resources.cpus << " " << sim.used_resources.mem << " "
        << sim.total_resources.mem << " " << sim.used_resources.disk << " "
        << sim.total_resources.disk << endl;
+
+  // Run auction again in 1 second
+  if (sim.ready_for_auction){
+/*  size_t idle = 0;
+  for(int i = 0; i < sim.num_frameworks; i++) {
+    vector<size_t> tmp = sim.allFrameworks[i].eligible_tasks(sim.allTasks, sim.jobs_to_tasks, sim.get_clock());
+    idle += tmp.size();
+  }
+  cout << idle << " tasks waiting to be scheduled" << endl;
+  cout << num_bids << " bids made this auction" << endl;
+*/
 
     sim.add_event(new AuctionEvent(get_time() + 1000000));
   }
@@ -645,10 +669,10 @@ void StartTaskEvent::run(MesosSimulation& sim) {
   }
 
   if (sim.policy == AUCTION){
-      if (!sim.ready_for_auction){
-    sim.add_event(new AuctionEvent( roundUp(this->get_time(), 1000000)));
-    sim.ready_for_auction = true;
-      }
+    if (!sim.ready_for_auction){
+      sim.add_event(new AuctionEvent( roundUp(this->get_time(), 1000000)));
+      sim.ready_for_auction = true;
+    }
   } else{
   //Restart making offers, because this new task may be schedulable
       if(!sim.currently_making_offers) {
@@ -745,10 +769,10 @@ int main(int argc, char* argv[]) {
 
   //METRICS: Completion time
   //double sum = 0;
-  cout << "#JOB COMPLETION TIMES" << endl;
+//  cout << "#JOB COMPLETION TIMES" << endl;
   for (const auto& kv : sim.jobs_to_tasks) {
     //cout << kv.first << endl;
-    cout << sim.jobs_to_num_tasks[kv.first] << " " << kv.second.second << endl;
+//    cout << sim.jobs_to_num_tasks[kv.first] << " " << kv.second.second << endl;
     //sum += it->second.second;
   }
   //if(DEBUG) cout << "Average job completition time is " <<

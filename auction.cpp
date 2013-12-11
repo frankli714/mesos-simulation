@@ -76,7 +76,7 @@ bool Auction::displace(const Bid& new_bid, vector<Bid*>& displaced_bids,
   for (const auto& bid : bids) {
     // Pass over your own bids.
     if (bid->framework_id == new_bid.framework_id){
-        VLOG(2) << "Passign over our own bid.";
+        VLOG(2) << "Passing over our own bid.";
         continue;
     }
 

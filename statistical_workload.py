@@ -89,7 +89,7 @@ def print_tasks(tasks, filename="synthetic_workload.txt", num_users =1):
                 last_job[t['framework']] = [current_job[t['framework']]]
             current_job[t['framework']] = t['job_id']
 # The appearance of task_id is just as a time
-            serialized = [ t['job_id'], counts[t['job_id']], t['task_id'], t['time']+t['task_id'], t['framework'] / num_users, 0, 0, t['cpu'], t['ram'], t['disk'], 1] + last_job[t['framework']]
+            serialized = [ t['job_id'], counts[t['job_id']], 0, t['time'], t['framework'] / num_users, 0, 0, t['cpu'], t['ram'], t['disk'], 1] + last_job[t['framework']]
             counts[t['job_id']] += 1
             f.write(' '.join(str(x) for x in serialized) + '\n')
 
