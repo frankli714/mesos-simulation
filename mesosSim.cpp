@@ -171,7 +171,7 @@ void trace_workload(
       t.being_run = false;
       t.task_time = split_v[3] - split_v[2];
       t.start_time = split_v[2];
-      t.prefers_special_resource = (bool) split_v[10];
+      t.special_resource_speedup = split_v[10];
       //Adding on dependencies
       for(int i = 11; i < split_v.size(); i++) {
         assert(split_v[i] != t.job_id);
@@ -342,7 +342,7 @@ void MesosSimulation::offer_resources(
            << todo_task.being_run << endl;
     }
     bool available_special_slave = false;
-    if (todo_task.prefers_special_resource) {
+    if (todo_task.special_resource_speedup < 1) {
       for (auto& kv : resources) {
         const size_t slave_id = kv.first;
         Resources& slave_resources = kv.second;
@@ -386,10 +386,12 @@ void MesosSimulation::offer_resources(
           framework_num_tasks_available.erase(f.id());
           assert(framework_num_tasks_available.count(f.id()) == 0);
         }
-        
+       
+        double task_runtime = todo_task.task_time;
+        if (slave.special_resource) task_runtime *= todo_task.special_resource_speedup;	
         slave.curr_tasks.insert(todo_task.id());
         this->add_event(new FinishedTaskEvent(
-            now + todo_task.task_time * ( 1 - slave.special_resource * 0.2), todo_task.slave_id, framework_id,
+            now + task_runtime, todo_task.slave_id, framework_id,
             todo_task.id(), todo_task.job_id));
 
         if (DEBUG) {

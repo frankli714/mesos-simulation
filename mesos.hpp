@@ -21,7 +21,7 @@ struct Task : public Indexable {
   double task_time;
   double start_time;
   bool being_run;
-  bool prefers_special_resource;
+  double special_resource_speedup;
   std::vector<double> dependencies;
 };
 
