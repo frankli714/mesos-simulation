@@ -58,6 +58,12 @@ bool Auction::displace(const Bid& new_bid, vector<Bid*>& displaced_bids,
 
   // Compute how much more resources we need to accomodate the new bid.
   SlaveID slave_id = new_bid.slave_id;
+  if (!(new_bid.requested_resources < resources[slave_id])) {
+    VLOG(2) << "    Slave too small: " << new_bid << " will never fit in "
+            << resources[slave_id];
+    return false;
+  }
+
   Resources needed_resources =
       resources[slave_id].missing(new_bid.requested_resources);
   if (needed_resources.zero()) {
@@ -100,9 +106,10 @@ bool Auction::displace(const Bid& new_bid, vector<Bid*>& displaced_bids,
     }
   }
 
-  // Total resources were not enough.
-  VLOG(2) << "    Failure: " << freed_resources << " < " <<
+  // Total resources were not enough despite the check above.
+  LOG(FATAL) << "    Failure: " << freed_resources << " < " <<
     needed_resources;
+
   return false;
 }
 
