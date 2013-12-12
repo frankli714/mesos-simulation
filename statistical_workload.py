@@ -23,7 +23,7 @@ def generate_statistics(jobs):
                 jobs_by_bucket[x].append(j)
     return {'jobs': jobs_by_bucket, 'counts':counts_by_bucket}
 
-def sample_tasks(jobs_by_bucket, counts_by_bucket):
+def sample_tasks(jobs_by_bucket, counts_by_bucket, acceleration=False):
     bucket = cutoffs[weighted_sample(counts_by_bucket[c] for c in cutoffs)]
     jobs = jobs_by_bucket[bucket]
     job = null_entry()
@@ -31,6 +31,7 @@ def sample_tasks(jobs_by_bucket, counts_by_bucket):
         sample = dict(choice(jobs))
         sample['count'] = randint(1, 10)
         job = average(job, sample)
+    job['acceleration'] = 1 if not acceleration else random()
     size = max(1, int((1+3*random()) * bucket))
     return [sample_task(job) for i in range(size)]
 
@@ -53,7 +54,7 @@ def weighted_sample(xs):
             return i
         i += 1
 
-def generate_tasks(statistics, frameworks, n):
+def generate_tasks(statistics, frameworks, n, acceleration=False):
     jobs = statistics['jobs']
     counts = statistics['counts']
     for c in cutoffs:
@@ -66,7 +67,7 @@ def generate_tasks(statistics, frameworks, n):
         frameworks = range(frameworks)
     while len(result) < n:
         framework = choice(frameworks)
-        tasks = sample_tasks(jobs, counts)
+        tasks = sample_tasks(jobs, counts, acceleration)
         for task in tasks:
             task['task_id'] = task_id
             task['job_id'] = job_id
@@ -88,8 +89,7 @@ def print_tasks(tasks, filename="synthetic_workload.txt", num_users =1):
             if t['framework'] in current_job and current_job[t['framework']] != t['job_id']:
                 last_job[t['framework']] = [current_job[t['framework']]]
             current_job[t['framework']] = t['job_id']
-# The appearance of task_id is just as a time
-            serialized = [ t['job_id'], counts[t['job_id']], 0, t['time'], t['framework'] / num_users, 0, 0, t['cpu'], t['ram'], t['disk'], 1] + last_job[t['framework']]
+            serialized = [ t['job_id'], counts[t['job_id']], 0, t['time'], t['framework'] / num_users, 0, 0, t['cpu'], t['ram'], t['disk'], t['acceleration']] + last_job[t['framework']]
             counts[t['job_id']] += 1
             f.write(' '.join(str(x) for x in serialized) + '\n')
 
@@ -164,7 +164,8 @@ parser.add_argument('num_users', metavar='users', type=int, help='number of inde
 parser.add_argument('--samples', metavar='s', type=int, help='number of samples to use to generate statistics [default=200000, max=1000000]', default=1000000)
 parser.add_argument('--output', metavar='o', type=str, help='filename to store result [default=synthetic_workload.txt]', default='synthetic_workload.txt')
 parser.add_argument('--input', metavar='i', type=str, help='trace to use as input [default={}]'.format(default_data_source()), default=default_data_source())
+parser.add_argument('--acceleration', type=bool, help='Whether to accelerate tasks on special hardware.', default=False)
 args = parser.parse_args()
 
 statistics = cache_statistics(args.samples, args.input)
-print_tasks(generate_tasks(statistics, args.num_frameworks*args.num_users, args.num_tasks), args.output, num_users=args.num_users)
+print_tasks(generate_tasks(statistics, args.num_frameworks*args.num_users, args.num_tasks, acceleration=args.acceleration), args.output, num_users=args.num_users)
