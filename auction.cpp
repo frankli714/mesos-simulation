@@ -30,7 +30,7 @@ inline std::ostream& operator<<(std::ostream& o, const Bid& bid) {
 }
 
 double value_of(const Bid& bid){
-    return bid.wtp / (bid.requested_resources.weight() + 0.0000001);
+    return bid.current_price / (bid.requested_resources.weight() + 0.0000001);
 }
 
 
@@ -204,7 +204,7 @@ void Auction::run() {
         vector<Bid*> best_displaced_bids;
         vector<pair<double, vector<Bid*>>> all_displaced_bids;
         bool found_profitable = false;
-        int best_bid_index;
+        int best_bid_index = -1;
 
         for (int j = 0; j < bids.size(); ++j) {
           auto& bid = bids[j];

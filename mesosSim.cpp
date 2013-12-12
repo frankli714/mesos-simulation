@@ -12,6 +12,7 @@
 #include <stack>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 
 #include <glog/logging.h>
 #include <gflags/gflags.h>
@@ -45,13 +46,14 @@ class AuctionEvent : public Event<MesosSimulation> {
 
 class StartTaskEvent: public Event<MesosSimulation> {
  public:
-   StartTaskEvent(double etime, size_t framework_id) 
+   StartTaskEvent(double etime, size_t framework_id, size_t task_id) 
      : Event(etime),
-     _framework_id(framework_id) {}
+     _framework_id(framework_id), _task_id(task_id) {}
 
    virtual void run(MesosSimulation& sim);
 
  private:
+   size_t _task_id;
    size_t _framework_id;
 };
 
@@ -85,7 +87,7 @@ class MesosSimulation : public Simulation<MesosSimulation> {
  public:
   MesosSimulation(
       int _num_slaves, int _num_special_slaves,
-      int _num_frameworks, Policy _policy);
+      int _num_frameworks, Policy _policy, string filename);
 
   void use_resources(size_t slave, const Resources& resources);
   void release_resources(size_t slave, const Resources& resources);
@@ -103,7 +105,7 @@ class MesosSimulation : public Simulation<MesosSimulation> {
   Indexer<Task> allTasks;
   Indexer<Job> allJobs;
 
-  size_t round_robin_next_framework = 0;
+  size_t round_robin_next_framework;
   unordered_map<size_t, int> framework_num_tasks_available;
   // A mapping from jobs to the IDs of the tasks which depend on these jobs.
   unordered_multimap<size_t, size_t> job_dependents;
@@ -112,6 +114,7 @@ class MesosSimulation : public Simulation<MesosSimulation> {
   const int num_special_slaves;
   const int num_frameworks;
   Policy policy;
+  ofstream output;
 
   static Resources total_resources, used_resources;
 
@@ -128,6 +131,7 @@ DEFINE_string(policy, "drf",
     "Resource allocation policy. One of roundrobin, drf, auction.");
 DEFINE_string(trace, "synthetic_workload.txt",
     "Path to trace for trace_workload.");
+DEFINE_string(validation, "validation.log", "Filename of validation logs");
 
 void rand_workload(int num_frameworks, int num_jobs, int num_tasks_per_job,
                    Indexer<Framework>& allFrameworks, Indexer<Task>& allTasks,
@@ -199,7 +203,7 @@ void trace_workload(
     for(int i = 11; i < split_v.size(); i++) {
       CHECK_NE(split_v[i], task.job_id) << "Self-dependency not allowed";
       task.remaining_dependencies.insert(split_v[i]);
-      sim->job_dependents.emplace(split_v[i], task.id());
+      sim->job_dependents.insert(make_pair(split_v[i], task.id()));
     }
 
     CHECK_GE(task.task_time, 0) << "ERROR IN PROCESSING TASK TIME! " 
@@ -210,7 +214,7 @@ void trace_workload(
         << "Frameworks did not appear in order";
     // Create event for the start time of each task, so we know a new task is
     // eligible for a particular framework
-    sim->add_event(new StartTaskEvent(task.start_time, framework.id()));
+    sim->add_event(new StartTaskEvent(task.start_time, framework.id(), task.id()));
     // Add task to framework
     if (task.remaining_dependencies.empty()) {
       framework.upcoming_tasks.insert(task.id());
@@ -235,13 +239,16 @@ void trace_workload(
   trace.close();
 }
 
-MesosSimulation::MesosSimulation(int _num_slaves, int _num_special_slaves, int _num_frameworks, Policy _policy)
+MesosSimulation::MesosSimulation(int _num_slaves, int _num_special_slaves, int _num_frameworks, Policy _policy, string filename)
   : num_slaves(_num_slaves), num_special_slaves(_num_special_slaves),
     num_frameworks(_num_frameworks), policy(_policy) {
   currently_making_offers = false;
   ready_for_auction = false;
 
+  output.open(filename);
+
   CHECK_GE(num_slaves, num_special_slaves);
+  round_robin_next_framework = 0;
   // lets initialize slave state and the event queue
   for (int i = 0; i < num_slaves; i++) {
     allSlaves.add();
@@ -307,7 +314,7 @@ void MesosSimulation::release_resources(size_t slave,
     used_resources = zero;
   }
   if (DEBUG)
-    cout << "Using Slave " << slave << ": "
+    cout << "Releasing Slave " << slave << ": "
          << allSlaves[slave].free_resources.cpus << " "
          << allSlaves[slave].free_resources.mem << endl;
 }
@@ -323,6 +330,8 @@ unordered_map<size_t, Resources> MesosSimulation::all_free_resources() const {
 void MesosSimulation::start_task(
     size_t slave_id, Framework& f,
     Task& task, double now, double rent) {
+
+    output << this->get_clock() << " " << task.id()<< " StartTask" << endl; 
 
     Slave& slave = allSlaves.get(slave_id);
     task.slave_id = slave_id;
@@ -377,14 +386,14 @@ void MesosSimulation::start_task(
 void MesosSimulation::offer_resources(
     size_t framework_id, unordered_map<size_t, Resources> resources,
     double now) {
-  cerr << "Framework " << framework_id << " offered:" << endl;
+  //cerr << "Framework " << framework_id << " offered:" << endl;
   vector<size_t> slaves;
   for (const auto& kv : resources) {
     slaves.push_back(kv.first);
   }
   sort(slaves.begin(), slaves.end());
   for (size_t slave_id : slaves) {
-    cerr << "  slave " << slave_id << ": " << resources[slave_id] << " [ " << allSlaves[slave_id].special_resource << endl;
+  //cerr << "  slave " << slave_id << ": " << resources[slave_id] << endl;
   }
 
   Framework& f = allFrameworks[framework_id];
@@ -661,6 +670,7 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
   auto& allFrameworks = sim.allFrameworks;
   auto& allTasks = sim.allTasks;
   auto& allSlaves = sim.allSlaves;
+  sim.output << this->get_time() << " " << this->_task_id << " FinishTask" << endl; 
 
 //  cout << "Finishing a task at " << this->get_time() << " for framework " << this->_framework_id << endl;
 
@@ -729,6 +739,8 @@ int main(int argc, char* argv[]) {
   google::InitGoogleLogging(argv[0]);
   FLAGS_logtostderr = true;
 
+  string filename = FLAGS_validation;
+
   Policy policy;
   if (FLAGS_policy == "roundrobin") {
     policy = ROUND_ROBIN;
@@ -741,17 +753,18 @@ int main(int argc, char* argv[]) {
   }
 
   MesosSimulation sim(
-      FLAGS_num_slaves, FLAGS_num_special_slaves, FLAGS_num_frameworks, policy);
+      FLAGS_num_slaves, FLAGS_num_special_slaves, FLAGS_num_frameworks, policy, filename);
   sim.run();
+  sim.output.close();
 
   //METRICS: Completion time
   //double sum = 0;
-//  cout << "#JOB COMPLETION TIMES" << endl;
+/*  cout << "#JOB COMPLETION TIMES" << endl;
   for (int i = 0; i < sim.allJobs.size(); ++i) {
     //cout << kv.first << endl;
-//    cout << sim.jobs_to_num_tasks[kv.first] << " " << kv.second.second << endl;
+    cout << sim.jobs_to_num_tasks[kv.first] << " " << kv.second.second << endl;
     //sum += it->second.second;
-  }
+  }*/
   //if(DEBUG) cout << "Average job completition time is " <<
   //float(sum)/float(jobs_to_tasks.size()) << endl;
 

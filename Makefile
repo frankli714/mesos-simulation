@@ -1,6 +1,6 @@
 CXX = g++
 CXXFLAGS = -g -O4 -march=native -std=c++0x -Wall
-LIBS = -lglog -lgflags -lprofiler
+LIBS = -lglog -lgflags
 
 mesosSim : mesosSim.o auction.o shared.o mesos.o
 	$(CXX) $(CXXFLAGS) $^ -o $@ $(LIBS)
