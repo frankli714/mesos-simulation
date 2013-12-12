@@ -11,9 +11,40 @@
 #include <unordered_map>
 #include <utility>
 
+struct Job : public Indexable {
+  Job(size_t num_tasks, double start_time = 0)
+      : num_remaining_tasks(num_tasks), num_total_tasks(num_tasks) {}
+
+  void increment_tasks() {
+      ++num_remaining_tasks;
+      ++num_total_tasks;
+  }
+  
+  void complete_task() {
+      --num_remaining_tasks;
+  }
+
+  bool finished() const {
+      return num_remaining_tasks == 0;
+  }
+  size_t num_remaining_tasks;
+  size_t num_total_tasks;
+  double start_time;
+  double end_time;
+
+#if 0
+  unordered_set<size_t> tasks;
+  // Jobs which have to complete before this job can start.
+  std::unordered_set<size_t> prerequisites;
+  // Jobs which cannot start before this job finishes.
+  std::unordered_set<size_t> dependents;
+#endif
+};
+
 struct Task : public Indexable {
   Task() : rent(0), being_run(false) {}
 
+  size_t framework_id;
   size_t slave_id;
   size_t job_id;
   Resources used_resources;
@@ -22,14 +53,13 @@ struct Task : public Indexable {
   double start_time;
   bool being_run;
   double special_resource_speedup;
-  std::vector<double> dependencies;
+  std::unordered_set<size_t> remaining_dependencies;
 };
 
 class Slave : public Indexable {
  public:
-  Slave()
-			: resources({ 1, 1, 1 }),
-				free_resources({ 1, 1, 1 }) {}
+  Slave() : resources({ 0.5, 0.5, 0.5 }),
+            free_resources({ 0.5, 0.5, 0.5 }) {}
   Resources resources;
   std::unordered_set<size_t> curr_tasks;
   Resources free_resources;
@@ -38,19 +68,31 @@ class Slave : public Indexable {
 
 class Framework : public Indexable {
  public:
-  Framework() : cpu_share(0), mem_share(0), disk_share(0), dominant_share(0) {}
+  Framework() 
+    : sets_updated_time(0), cpu_share(0), mem_share(0), disk_share(0),
+      dominant_share(0) {}
   // Return a list of tasks which we can start running at the current time.
-  std::vector<size_t> eligible_tasks(const Indexer<Task>& tasks,
-                                     const std::unordered_map<size_t, std::pair<int, double>>& jobs_to_tasks,
-                                     double current_time) const;
+  std::vector<size_t> eligible_tasks(
+            Indexer<Task>& tasks,
+            const Indexer<Job>& jobs,
+            double current_time) const;
+    
+  void task_dependency_finished(
+          Task& task, size_t finished_job_id, double time);
+  void task_started(size_t task_id, double time);
+  void task_finished(size_t task_id, double time);
 
-	// Schedule tasks given the following resources.
-	std::vector<size_t> schedule_tasks_with_resources(
-			const Indexer<Task>& tasks,
-			std::unordered_map<size_t, Resources> resources,
-			double current_time);
-	
-  std::vector<std::deque<size_t>> task_lists;
+  // The time at which these sets were updated.
+  double sets_updated_time;
+  // Tasks which have finished.
+  std::unordered_set<size_t> finished_tasks;
+  // Tasks which are currently running.
+  std::unordered_set<size_t> running_tasks;
+  // Tasks which have uncompleted dependencies.
+  std::unordered_set<size_t> future_tasks;
+  // Tasks which have completed dependencies.
+  std::set<size_t> upcoming_tasks;
+
   Resources current_used;
 
   double cpu_share, mem_share, disk_share, dominant_share;
