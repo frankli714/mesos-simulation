@@ -101,17 +101,17 @@ class MesosSimulation : public Simulation<MesosSimulation> {
   Indexer<Slave> allSlaves;
   Indexer<Framework> allFrameworks;
   Indexer<Task> allTasks;
+  Indexer<Job> allJobs;
 
-  Policy policy;
   size_t round_robin_next_framework = 0;
-
-  unordered_map<size_t, pair<int, double>> jobs_to_tasks;
-  unordered_map<size_t, int> jobs_to_num_tasks;
   unordered_map<size_t, int> framework_num_tasks_available;
+  // A mapping from jobs to the IDs of the tasks which depend on these jobs.
+  unordered_multimap<size_t, size_t> job_dependents;
 
   const int num_slaves;
   const int num_special_slaves;
   const int num_frameworks;
+  Policy policy;
 
   static Resources total_resources, used_resources;
 
@@ -130,13 +130,14 @@ DEFINE_string(trace, "synthetic_workload.txt",
     "Path to trace for trace_workload.");
 
 void rand_workload(int num_frameworks, int num_jobs, int num_tasks_per_job,
-                   Indexer<Framework>& allFrameworks, Indexer<Task>& allTasks) {
+                   Indexer<Framework>& allFrameworks, Indexer<Task>& allTasks,
+                   Indexer<Job>& allJobs) {
   // This simply generates random tasks for debugging purposes
   srand(0);
   for (int i = 0; i < num_frameworks; i++) {
     Framework& framework = allFrameworks.add();
     for (int j = 0; j < num_jobs; j++) {
-      deque<size_t> q;
+      allJobs.add(num_tasks_per_job);
       for (int k = 0; k < num_tasks_per_job; k++) {
         Task& t = allTasks.add();
 
@@ -146,18 +147,17 @@ void rand_workload(int num_frameworks, int num_jobs, int num_tasks_per_job,
 
         t.being_run = false;
         t.task_time = (double)(rand() % 10);
-        q.push_back(t.id());
+        framework.upcoming_tasks.insert(t.id());
       }
-      framework.task_lists.push_back(q);
     }
   }
 }
 
 void trace_workload(
-    int num_frameworks, Indexer<Framework>& allFrameworks,
+    int num_frameworks,
+    Indexer<Framework>& allFrameworks,
     Indexer<Task>& allTasks,
-    unordered_map<size_t, pair<int, double>>& jobs_to_tasks,
-    unordered_map<size_t, int>& jobs_to_num_tasks,
+    Indexer<Job>& allJobs,
     MesosSimulation* sim) {
 
   for (int i = 0; i < num_frameworks; i++) {
@@ -170,94 +170,65 @@ void trace_workload(
     }
   }
 
+  allJobs.add(0); // Dummy job with 0 tasks so that real jobs begin at ID 1.
+
   string line;
-  //ifstream trace("task_times_converted.txt");
-  //ifstream trace("short_traces.txt");
   ifstream trace(FLAGS_trace);
   CHECK(trace.is_open()) << FLAGS_trace << " not opened";
 
-  int job_vector_index = 0;
+//  int job_vector_index = 0;
   size_t last_j_id = 0;
   while (getline(trace, line)) {
     // 0: job_id 1: task_index 2: start_time 3: end_time 4: framework_id 
     // 5: scheduling_class 6: priority 7: cpu 8: ram 9: disk
     // 10: special_resource_speedup 11-: dependencies
     vector<double> split_v = split(line, ' ');
-
     CHECK_GE(split_v.size(), 11) << "Not enough parts in line.";
-    Task& t = allTasks.add();
-    t.slave_id = 0;  //Set simply as default
-    t.job_id = split_v[0];
 
-    t.used_resources = { split_v[7], split_v[8], split_v[9] };
-    t.being_run = false;
-    t.task_time = split_v[3] - split_v[2];
-    t.start_time = split_v[2];
-    t.special_resource_speedup = split_v[10];
-    //Adding on dependencies
+    Task& task = allTasks.add();
+    task.framework_id = static_cast<size_t>(split_v[4]);
+    task.slave_id = 0;  //Set simply as default
+    task.job_id = split_v[0];
+    task.used_resources = { split_v[7], split_v[8], split_v[9] };
+    task.being_run = false;
+    task.task_time = split_v[3] - split_v[2];
+    task.start_time = split_v[2];
+    task.special_resource_speedup = split_v[10];
+    // Add dependencies of task
     for(int i = 11; i < split_v.size(); i++) {
-      CHECK_NE(split_v[i], t.job_id) << "Self-dependency not allowed";
-      t.dependencies.push_back(split_v[i]);
+      CHECK_NE(split_v[i], task.job_id) << "Self-dependency not allowed";
+      task.remaining_dependencies.insert(split_v[i]);
+      sim->job_dependents.emplace(split_v[i], task.id());
     }
 
-    if (t.task_time <= 0) {
-      cout << "ERROR IN PROCESSING TASK TIME! " << t.job_id << " "
-           << t.start_time << " " << split_v[3] << endl;
-      exit(EXIT_FAILURE);
+    CHECK_GE(task.task_time, 0) << "ERROR IN PROCESSING TASK TIME! " 
+      << task.job_id << " " << task.start_time << " " << split_v[3] << endl;
+
+    Framework& framework = allFrameworks[(size_t) split_v[4]];
+    CHECK_EQ(framework.id(), split_v[4])
+        << "Frameworks did not appear in order";
+    // Create event for the start time of each task, so we know a new task is
+    // eligible for a particular framework
+    sim->add_event(new StartTaskEvent(task.start_time, framework.id()));
+    // Add task to framework
+    if (task.remaining_dependencies.empty()) {
+      framework.upcoming_tasks.insert(task.id());
+    } else {
+      framework.future_tasks.insert(task.id());
     }
 
-    Framework& f = allFrameworks[(int) split_v[4]];
-    CHECK_EQ(f.id(), split_v[4]) << "Frameworks did not appear in order";
-    //Create event for the start time of each task, so we know a new task is
-    //eligible for a particular framework
-    sim->add_event(new StartTaskEvent(t.start_time, f.id()));
-
+    Job* job;
     if (split_v[0] != last_j_id) {
       last_j_id = split_v[0];
-      job_vector_index = f.task_lists.size();
-      deque<size_t> q;
-      q.push_back(t.id());
-      f.task_lists.push_back(q);
-      jobs_to_tasks[t.job_id] = make_pair(1, t.start_time);
-      jobs_to_num_tasks[t.job_id] = 1;
-
+      // Create a new job since we haven't seen this job yet.
+      job = &allJobs.add(0);
+      CHECK_EQ(job->id(), last_j_id);
     } else {
-      jobs_to_tasks[t.job_id].first += 1;
-      jobs_to_num_tasks[t.job_id] += 1;
-
-      if (t.start_time < jobs_to_tasks[t.job_id].second)
-        jobs_to_tasks[t.job_id].second = t.start_time;
-      int i;
-      for (i = job_vector_index; i < f.task_lists.size(); i++) {
-        bool has_intersection = false;
-        for (int j = 0; j < f.task_lists[i].size(); j++) {
-          const Task& cmp_task = allTasks[f.task_lists[i][j]];
-          has_intersection = intersect(
-              t.start_time, t.start_time + t.task_time, cmp_task.start_time,
-              cmp_task.start_time + cmp_task.task_time);
-          if (has_intersection) break;
-        }
-        if (!has_intersection) {
-          if (DEBUG) cout << "No intersections! " << line << endl;
-          int j;
-          for (j = 0; j < f.task_lists[i].size(); j++) {
-            if (t.start_time + t.task_time <
-                allTasks[f.task_lists[i][j]].start_time) {
-              f.task_lists[i].insert(f.task_lists[i].begin() + j, t.id());
-              break;
-            }
-          }
-          if (j == f.task_lists[i].size()) {
-            f.task_lists[i].push_back(t.id());
-          }
-          break;
-        }
-      }
-      if (i == f.task_lists.size()) {
-        deque<size_t> q;
-        q.push_back(t.id());
-        f.task_lists.push_back(q);
-      }
+      job = &allJobs.get(last_j_id);
+    }
+    job->increment_tasks();
+    if (task.start_time < job->start_time) {
+      job->start_time = task.start_time;
     }
   }
   trace.close();
@@ -280,11 +251,11 @@ MesosSimulation::MesosSimulation(int _num_slaves, int _num_special_slaves, int _
   }
 
   //rand_workload(num_frameworks, 2, 2, allFrameworks, allTasks);
-  trace_workload(num_frameworks, allFrameworks, allTasks,
-                 jobs_to_tasks, jobs_to_num_tasks, this);
+  trace_workload(num_frameworks, allFrameworks, allTasks, allJobs, this);
 //  cout << "Done generating workload" << endl;
   set_remaining_tasks(allTasks.size());
 
+#if 0
   //Spot check
   int sum_size = 0;
   for (int i = 0; i < num_frameworks; i++) {
@@ -303,8 +274,7 @@ MesosSimulation::MesosSimulation(int _num_slaves, int _num_special_slaves, int _
       sum_size += allFrameworks[i].task_lists[j].size();
     }
   }
-//  cout << "DONE " << sum_size << endl;
-  //add_event(new OfferEvent(5637000000));
+#endif
 
   if (DEBUG) {
     for (const auto& slave : allSlaves) {
@@ -390,6 +360,8 @@ void MesosSimulation::start_task(
       task.rent = rent;
     }
 
+    f.task_started(task.id(), now);
+
     if (DEBUG) {
       cout << "Slave scheduled: id=" << slave.id()
            << " cpu: " << slave.free_resources.cpus
@@ -414,7 +386,7 @@ void MesosSimulation::offer_resources(
   Framework& f = allFrameworks[framework_id];
   if (DEBUG) cout << "Framework " << framework_id << endl;
 
-  vector<size_t> eligible_tasks = f.eligible_tasks(allTasks, jobs_to_tasks, now);
+  vector<size_t> eligible_tasks = f.eligible_tasks(allTasks, allJobs, now);
   for (size_t task_id : eligible_tasks) {
     Task& todo_task = allTasks.get(task_id);
     if (DEBUG) {
@@ -495,7 +467,6 @@ void OfferEvent::run_drf(MesosSimulation& sim) {
   assert(sim.currently_making_offers);
   double min_dominant_share = 1.0;
   double next_id = 0;
-  double now = get_time();
   bool make_offer = false;
   for (auto it = sim.framework_num_tasks_available.begin();
      it != sim.framework_num_tasks_available.end();
@@ -562,7 +533,7 @@ void AuctionEvent::run(MesosSimulation& sim) {
   for (const Framework& framework : sim.allFrameworks) {
     if (framework.budget < 0) continue;
     vector<vector<Bid>>& bids = all_bids[framework.id()];
-    vector<size_t> tasks = framework.eligible_tasks(sim.allTasks, sim.jobs_to_tasks , get_time());
+    vector<size_t> tasks = framework.eligible_tasks(sim.allTasks, sim.allJobs, get_time());
 
     for (size_t task_id : tasks) {
       const Task& task = sim.allTasks.get(task_id);
@@ -680,7 +651,6 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
   auto& allFrameworks = sim.allFrameworks;
   auto& allTasks = sim.allTasks;
   auto& allSlaves = sim.allSlaves;
-  auto& jobs_to_tasks = sim.jobs_to_tasks;
 
 //  cout << "Finishing a task at " << this->get_time() << " for framework " << this->_framework_id << endl;
 
@@ -711,20 +681,22 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
   
   slave.curr_tasks.erase(t_id);
 
-  for (deque<size_t>& task_list : framework.task_lists) {
-    if (task_list.size() > 0 && task_list[0] == t_id) {
-      CHECK(allTasks[task_list[0]].being_run);
-      task_list.pop_front();
-      break;
-    }
-  }
+  framework.task_finished(t_id, this->get_time());
 
   sim.decrement_remaining_tasks();
 
-  jobs_to_tasks[j_id].first -= 1;
-  if (jobs_to_tasks[j_id].first == 0) {
-    double start = jobs_to_tasks[j_id].second;
-    jobs_to_tasks[j_id].second = this->get_time() - start;
+  Job& job = sim.allJobs.get(j_id);
+  job.complete_task();
+  if (job.finished()) {
+    job.end_time = this->get_time() - job.start_time;
+
+    // Update dependents of job
+    auto its = sim.job_dependents.equal_range(j_id);
+    for (auto it = its.first; it != its.second; ++it) {
+      Task& task = allTasks.get(it->second);
+      Framework& framework = allFrameworks.get(task.framework_id);
+      framework.task_dependency_finished(task, j_id, this->get_time());
+    }
   }
 
   if (sim.policy == AUCTION){
@@ -764,7 +736,7 @@ int main(int argc, char* argv[]) {
   //METRICS: Completion time
   //double sum = 0;
 //  cout << "#JOB COMPLETION TIMES" << endl;
-  for (const auto& kv : sim.jobs_to_tasks) {
+  for (int i = 0; i < sim.allJobs.size(); ++i) {
     //cout << kv.first << endl;
 //    cout << sim.jobs_to_num_tasks[kv.first] << " " << kv.second.second << endl;
     //sum += it->second.second;
