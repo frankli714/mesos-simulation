@@ -31,7 +31,7 @@ def sample_tasks(jobs_by_bucket, counts_by_bucket, acceleration=False):
         sample = dict(choice(jobs))
         sample['count'] = randint(1, 10)
         job = average(job, sample)
-    job['acceleration'] = 1 if not acceleration else random()
+    job['acceleration'] = 1 if not acceleration else 0.5 * (1 + random())
     size = max(1, int((1+3*random()) * bucket))
     return [sample_task(job) for i in range(size)]
 
