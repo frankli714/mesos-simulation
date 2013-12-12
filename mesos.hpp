@@ -10,6 +10,7 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <utility>
+#include <set>
 
 struct Job : public Indexable {
   Job(size_t num_tasks, double start_time = 0)
@@ -58,8 +59,8 @@ struct Task : public Indexable {
 
 class Slave : public Indexable {
  public:
-  Slave() : resources({ 0.5, 0.5, 0.5 }),
-            free_resources({ 0.5, 0.5, 0.5 }) {}
+  Slave() : resources({ 10, 10000, 1 }),
+            free_resources({ 10, 10000, 1 }) {}
   Resources resources;
   std::unordered_set<size_t> curr_tasks;
   Resources free_resources;
