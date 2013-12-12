@@ -2,6 +2,7 @@
 #include <cassert>
 #include <climits>
 #include <cmath>
+#include <iomanip>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
@@ -114,6 +115,7 @@ class MesosSimulation : public Simulation<MesosSimulation> {
 
   static Resources total_resources, used_resources;
 
+  bool ready_for_auction;
   bool currently_making_offers;
 };
 Resources MesosSimulation::total_resources;
@@ -172,100 +174,100 @@ void trace_workload(
   //ifstream trace("task_times_converted.txt");
   //ifstream trace("short_traces.txt");
   ifstream trace(FLAGS_trace);
-  if (trace.is_open()) {
-//    cout << " IN " << endl;
-    int job_vector_index = 0;
-    size_t last_j_id = 0;
-    while (getline(trace, line)) {
-      // 0: job_id 1: task_index 2: start_time 3: end_time 4: framework_id 5:
-      // scheduling_class
-      // 6: priority 7: cpu 8: ram 9: disk
-      vector<double> split_v = split(line, ' ');
+  CHECK(trace.is_open()) << FLAGS_trace << " not opened";
 
-      CHECK_GE(split_v.size(), 11) << "Not enough parts in line.";
-      Task& t = allTasks.add();
-      t.slave_id = 0;  //Set simply as default
-      t.job_id = split_v[0];
+  int job_vector_index = 0;
+  size_t last_j_id = 0;
+  while (getline(trace, line)) {
+    // 0: job_id 1: task_index 2: start_time 3: end_time 4: framework_id 
+    // 5: scheduling_class 6: priority 7: cpu 8: ram 9: disk
+    // 10: special_resource_speedup 11-: dependencies
+    vector<double> split_v = split(line, ' ');
 
-      t.used_resources = { split_v[7], split_v[8], split_v[9] };
-      t.being_run = false;
-      t.task_time = split_v[3] - split_v[2];
-      t.start_time = split_v[2];
-      t.special_resource_speedup = split_v[10];
-      //Adding on dependencies
-      for(int i = 11; i < split_v.size(); i++) {
-        CHECK_NE(split_v[i], t.job_id) << "Self-dependency not allowed";
-        t.dependencies.push_back(split_v[i]);
+    CHECK_GE(split_v.size(), 11) << "Not enough parts in line.";
+    Task& t = allTasks.add();
+    t.slave_id = 0;  //Set simply as default
+    t.job_id = split_v[0];
+
+    t.used_resources = { split_v[7], split_v[8], split_v[9] };
+    t.being_run = false;
+    t.task_time = split_v[3] - split_v[2];
+    t.start_time = split_v[2];
+    t.special_resource_speedup = split_v[10];
+    //Adding on dependencies
+    for(int i = 11; i < split_v.size(); i++) {
+      CHECK_NE(split_v[i], t.job_id) << "Self-dependency not allowed";
+      t.dependencies.push_back(split_v[i]);
+    }
+
+    if (t.task_time <= 0) {
+      cout << "ERROR IN PROCESSING TASK TIME! " << t.job_id << " "
+           << t.start_time << " " << split_v[3] << endl;
+      exit(EXIT_FAILURE);
+    }
+
+    Framework& f = allFrameworks[(int) split_v[4]];
+    CHECK_EQ(f.id(), split_v[4]) << "Frameworks did not appear in order";
+    //Create event for the start time of each task, so we know a new task is
+    //eligible for a particular framework
+    sim->add_event(new StartTaskEvent(t.start_time, f.id()));
+
+    if (split_v[0] != last_j_id) {
+      last_j_id = split_v[0];
+      job_vector_index = f.task_lists.size();
+      deque<size_t> q;
+      q.push_back(t.id());
+      f.task_lists.push_back(q);
+      jobs_to_tasks[t.job_id] = make_pair(1, t.start_time);
+      jobs_to_num_tasks[t.job_id] = 1;
+
+    } else {
+      jobs_to_tasks[t.job_id].first += 1;
+      jobs_to_num_tasks[t.job_id] += 1;
+
+      if (t.start_time < jobs_to_tasks[t.job_id].second)
+        jobs_to_tasks[t.job_id].second = t.start_time;
+      int i;
+      for (i = job_vector_index; i < f.task_lists.size(); i++) {
+        bool has_intersection = false;
+        for (int j = 0; j < f.task_lists[i].size(); j++) {
+          const Task& cmp_task = allTasks[f.task_lists[i][j]];
+          has_intersection = intersect(
+              t.start_time, t.start_time + t.task_time, cmp_task.start_time,
+              cmp_task.start_time + cmp_task.task_time);
+          if (has_intersection) break;
+        }
+        if (!has_intersection) {
+          if (DEBUG) cout << "No intersections! " << line << endl;
+          int j;
+          for (j = 0; j < f.task_lists[i].size(); j++) {
+            if (t.start_time + t.task_time <
+                allTasks[f.task_lists[i][j]].start_time) {
+              f.task_lists[i].insert(f.task_lists[i].begin() + j, t.id());
+              break;
+            }
+          }
+          if (j == f.task_lists[i].size()) {
+            f.task_lists[i].push_back(t.id());
+          }
+          break;
+        }
       }
-
-      if (t.task_time <= 0) {
-        cout << "ERROR IN PROCESSING TASK TIME! " << t.job_id << " "
-             << t.start_time << " " << split_v[3] << endl;
-        exit(EXIT_FAILURE);
-      }
-
-      Framework& f = allFrameworks[(int) split_v[4]];
-      CHECK_EQ(f.id(), split_v[4]) << "Frameworks did not appear in order";
-      //Create event for the start time of each task, so we know a new task is
-      //eligible for a particular framework
-      sim->add_event(new StartTaskEvent(t.start_time, f.id()));
-
-      if (split_v[0] != last_j_id) {
-        last_j_id = split_v[0];
-        job_vector_index = f.task_lists.size();
+      if (i == f.task_lists.size()) {
         deque<size_t> q;
         q.push_back(t.id());
         f.task_lists.push_back(q);
-        jobs_to_tasks[t.job_id] = make_pair(1, t.start_time);
-        jobs_to_num_tasks[t.job_id] = 1;
-
-      } else {
-        jobs_to_tasks[t.job_id].first += 1;
-        jobs_to_num_tasks[t.job_id] += 1;
-
-        if (t.start_time < jobs_to_tasks[t.job_id].second)
-          jobs_to_tasks[t.job_id].second = t.start_time;
-        int i;
-        for (i = job_vector_index; i < f.task_lists.size(); i++) {
-          bool has_intersection = false;
-          for (int j = 0; j < f.task_lists[i].size(); j++) {
-            const Task& cmp_task = allTasks[f.task_lists[i][j]];
-            has_intersection = intersect(
-                t.start_time, t.start_time + t.task_time, cmp_task.start_time,
-                cmp_task.start_time + cmp_task.task_time);
-            if (has_intersection) break;
-          }
-          if (!has_intersection) {
-            if (DEBUG) cout << "No intersections! " << line << endl;
-            int j;
-            for (j = 0; j < f.task_lists[i].size(); j++) {
-              if (t.start_time + t.task_time <
-                  allTasks[f.task_lists[i][j]].start_time) {
-                f.task_lists[i].insert(f.task_lists[i].begin() + j, t.id());
-                break;
-              }
-            }
-            if (j == f.task_lists[i].size()) {
-              f.task_lists[i].push_back(t.id());
-            }
-            break;
-          }
-        }
-        if (i == f.task_lists.size()) {
-          deque<size_t> q;
-          q.push_back(t.id());
-          f.task_lists.push_back(q);
-        }
       }
     }
-    trace.close();
   }
+  trace.close();
 }
 
 MesosSimulation::MesosSimulation(int _num_slaves, int _num_special_slaves, int _num_frameworks, Policy _policy)
   : num_slaves(_num_slaves), num_special_slaves(_num_special_slaves),
     num_frameworks(_num_frameworks), policy(_policy) {
   currently_making_offers = false;
+  ready_for_auction = false;
 
   CHECK_GE(num_slaves, num_special_slaves);
   round_robin_next_framework = 0;
@@ -400,14 +402,14 @@ void MesosSimulation::start_task(
 void MesosSimulation::offer_resources(
     size_t framework_id, unordered_map<size_t, Resources> resources,
     double now) {
-//  cerr << "Framework " << framework_id << " offered:" << endl;
+  //cerr << "Framework " << framework_id << " offered:" << endl;
   vector<size_t> slaves;
   for (const auto& kv : resources) {
     slaves.push_back(kv.first);
   }
   sort(slaves.begin(), slaves.end());
   for (size_t slave_id : slaves) {
-//    cerr << "  slave " << slave_id << ": " << resources[slave_id] << endl;
+  //cerr << "  slave " << slave_id << ": " << resources[slave_id] << endl;
   }
 
   Framework& f = allFrameworks[framework_id];
@@ -469,10 +471,10 @@ void OfferEvent::run(MesosSimulation& sim) {
 
   //cout << "Offers made at time " << << endl;
   //Log utilization
-  cout << sim.get_clock() / 1000000 << " " << sim.used_resources.cpus << " "
+/*  cout << sim.get_clock() / 1000000 << " " << sim.used_resources.cpus << " "
        << sim.total_resources.cpus << " " << sim.used_resources.mem << " "
        << sim.total_resources.mem << " " << sim.used_resources.disk << " "
-       << sim.total_resources.disk << endl;
+       << sim.total_resources.disk << endl;*/
 /*  size_t idle = 0;
   for(int i = 0; i < sim.num_frameworks; i++) {
     vector<size_t> tmp = sim.allFrameworks[i].eligible_tasks(sim.allTasks, sim.jobs_to_tasks, sim.get_clock());
@@ -559,6 +561,8 @@ void AuctionEvent::run(MesosSimulation& sim) {
   // - bids
   unordered_map<FrameworkID, vector<vector<Bid>>> all_bids;
   for (const Framework& framework : sim.allFrameworks) {
+    VLOG(1) << "Budget of framework " << framework.id() << " is " << framework.budget;
+//    cerr << "ID: " << framework.id() << " budget: " << framework.budget << " income: " << framework.income << " expenses: " << framework.expenses << endl;
     if (framework.budget < 0) continue;
     vector<vector<Bid>>& bids = all_bids[framework.id()];
     vector<size_t> tasks = framework.eligible_tasks(sim.allTasks, sim.jobs_to_tasks , get_time());
@@ -581,7 +585,15 @@ void AuctionEvent::run(MesosSimulation& sim) {
         bid.task_id = task.id();
         bid.requested_resources = task.used_resources;
 
-        bid.wtp = bid.requested_resources.cpus;  // FIXME    
+        double time_horizon = 1000000;
+        double effective_income = framework.income - framework.expenses + framework.budget / time_horizon;
+    VLOG(1) << "Income of framework " << framework.id() << " is " << framework.income;
+    VLOG(1) << "Expenses of framework " << framework.id() << " is " << framework.expenses;
+    VLOG(1) << "Effective Income of framework " << framework.id() << " is " << effective_income;
+
+        Slave& slave = sim.allSlaves.get(kv.first);
+        bid.wtp = bid.requested_resources.weight() * effective_income / framework.income; // FIXME
+        if(slave.special_resource) bid.wtp /= pow(task.special_resource_speedup,3);
         bids_for_task.push_back(std::move(bid));
       }
       bids.push_back(std::move(bids_for_task));
@@ -593,7 +605,7 @@ void AuctionEvent::run(MesosSimulation& sim) {
   // - reservation prices
   Resources reservation_price(0.1, 0.05, 0.01);
   // - minimum price increase
-  double min_price_increase = 0.001;
+  double min_price_increase = 0;
   // - price multiplier
   double price_multiplier = 1.1;
 
@@ -606,7 +618,7 @@ void AuctionEvent::run(MesosSimulation& sim) {
   const unordered_map<SlaveID, vector<Bid*>>& results = auction.results();
 
   // Stop making auctions, unless something gets sold this round
-  sim.currently_making_offers = false;
+  sim.ready_for_auction = false;
   for (const auto& result : results) {
     size_t slave_id = result.first;
     const vector<Bid*>& winning_bids = result.second;
@@ -616,17 +628,17 @@ void AuctionEvent::run(MesosSimulation& sim) {
 
       Framework& framework = sim.allFrameworks.get(bid->framework_id);
       sim.start_task(slave_id, framework, sim.allTasks.get(bid->task_id), get_time(), bid->current_price);
-      sim.currently_making_offers = true;
+      sim.ready_for_auction = true;
 
     }
   }
-
-  // Run auction again in 1 second
-  if (sim.currently_making_offers){
-    cout << sim.get_clock() / 1000000 << " " << sim.used_resources.cpus << " "
+/*    cout << sim.get_clock() / 1000000 << " " << sim.used_resources.cpus << " "
        << sim.total_resources.cpus << " " << sim.used_resources.mem << " "
        << sim.total_resources.mem << " " << sim.used_resources.disk << " "
-       << sim.total_resources.disk << endl;
+       << sim.total_resources.disk << endl;*/
+
+  // Run auction again in 1 second
+  if (sim.ready_for_auction){
 /*  size_t idle = 0;
   for(int i = 0; i < sim.num_frameworks; i++) {
     vector<size_t> tmp = sim.allFrameworks[i].eligible_tasks(sim.allTasks, sim.jobs_to_tasks, sim.get_clock());
@@ -658,14 +670,17 @@ void StartTaskEvent::run(MesosSimulation& sim) {
     sim.framework_num_tasks_available[f.id()] += 1;
   }
 
-  //Restart making offers, because this new task may be schedulable
-  if(!sim.currently_making_offers) {
-    sim.currently_making_offers = true;
-    if (sim.policy == AUCTION) {
-      sim.add_event(new AuctionEvent( roundUp(this->get_time(), 1000000)));
-    } else {
-      sim.add_event(new OfferEvent( roundUp(this->get_time(), 1000000)));
+  if (sim.policy == AUCTION){
+    if (!sim.ready_for_auction){
+      sim.add_event(new AuctionEvent( roundUp(this->get_time()+1, 1000000)));
+      sim.ready_for_auction = true;
     }
+  } else{
+  //Restart making offers, because this new task may be schedulable
+      if(!sim.currently_making_offers) {
+        sim.currently_making_offers = true;
+        sim.add_event(new OfferEvent( roundUp(this->get_time(), 1000000)));
+      }
   }
 }
 
@@ -719,15 +734,17 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
     double start = jobs_to_tasks[j_id].second;
     jobs_to_tasks[j_id].second = this->get_time() - start;
   }
-  
-  //Restart making offers, in the case that a task can be scheduled now
-  if(!sim.currently_making_offers) {
-    sim.currently_making_offers = true;
-    if (sim.policy == AUCTION) {
-      sim.add_event(new AuctionEvent( roundUp(this->get_time(), 1000000)));
-    } else {
-      sim.add_event(new OfferEvent( roundUp(this->get_time(), 1000000)));
-    }
+
+  if (sim.policy == AUCTION){
+      if(!sim.ready_for_auction){
+        sim.add_event(new AuctionEvent( roundUp(this->get_time(), 1000000)));
+        sim.ready_for_auction = true;
+      }
+  } else{
+      if(!sim.currently_making_offers) {
+        sim.currently_making_offers = true;
+        sim.add_event(new OfferEvent( roundUp(this->get_time(), 1000000)));
+      }
   }
 
 }
@@ -757,7 +774,7 @@ int main(int argc, char* argv[]) {
 //  cout << "#JOB COMPLETION TIMES" << endl;
   for (const auto& kv : sim.jobs_to_tasks) {
     //cout << kv.first << endl;
-//    cout << sim.jobs_to_num_tasks[kv.first] << " " << kv.second.second << endl;
+    cout << sim.jobs_to_num_tasks[kv.first] << " " << kv.second.second << endl;
     //sum += it->second.second;
   }
   //if(DEBUG) cout << "Average job completition time is " <<

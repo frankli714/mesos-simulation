@@ -32,6 +32,8 @@ class Auction {
 
   void run();
 
+  void maintain_order(size_t slave_id);
+
   const unordered_map<SlaveID, vector<Bid*>>& results() const {
     return winning_bids_per_slave;
   }

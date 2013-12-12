@@ -1,13 +1,29 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import sys
 
-drf = np.loadtxt("drf_time")
-auction = np.loadtxt("auction_time")
-plt.xlabel("time (in minutes)")
+print(sys.argv)
+drf = np.loadtxt(sys.argv[1])
+auction = np.loadtxt(sys.argv[2])
+plt.xlabel("time (in hours)")
 plt.ylabel("CPU utilization")
 plt.title("CPU utilization")
-#plt.axis([0,1440,0,1])
-plt.plot(drf[:,0]/60, drf[:,1]/drf[:,2], label="DRF")
-plt.plot(auction[:,0]/60, auction[:,1]/auction[:,2], label="Auction")
+plt.axis([0,180000/3600,0,1])
+plt.plot(drf[:,0]/3600.0, drf[:,1]/drf[:,2], label="DRF")
+plt.plot(auction[:,0]/3600.0, auction[:,1]/auction[:,2], label="Auction")
+plt.legend(loc="center right") 
+plt.show()
+
+fig,ax = plt.subplots()
+ax.yaxis.grid(b=True, which='both')
+ax.set_xticks(range(50))
+ax.xaxis.grid(b=True, which='both')
+
+plt.xlabel("time (in hours)")
+plt.ylabel("Memory utilization")
+plt.title("Memory utilization")
+plt.axis([0,180000/3600,0,1])
+plt.plot(drf[:,0]/3600.0, drf[:,3]/drf[:,4], label="DRF")
+plt.plot(auction[:,0]/3600.0, auction[:,3]/auction[:,4], label="Auction")
 plt.legend(loc="center right") 
 plt.show()
