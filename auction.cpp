@@ -206,14 +206,15 @@ void Auction::run() {
           double total_cost;
           bool success = displace(bid, displaced_bids, total_cost);
           if (!success){
-              if (total_cost > bid.wtp){
-                  all_displaced_bids.push_back(make_pair(total_cost - bid.wtp, displaced_bids));
-              }
-              continue;
+                           continue;
           }
 
           double profit =
               bid.wtp - total_cost * price_multiplier - min_price_increase;
+              if (profit < 0){
+                  all_displaced_bids.push_back(make_pair(-profit, displaced_bids));
+              }
+
           if (profit > best_profit) {
             best_bid = &bid;
             best_profit = profit;
@@ -228,7 +229,9 @@ void Auction::run() {
 
             for (pair <double, vector<Bid*>> p : all_displaced_bids){
                 for (Bid* bid : p.second){
+                    VLOG(2) << "Incrementing " << bid << " using gap " << p.first;
                     bid->current_price = max(bid->current_price, bid->wtp - p.first);
+                    VLOG(2) << "Incremented " << bid;
                 }
                 if (! p.second.empty()) { 
                     this->maintain_order(p.second.front()->slave_id);

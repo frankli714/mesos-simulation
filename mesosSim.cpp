@@ -167,6 +167,7 @@ void trace_workload(
       framework.budget = sim->num_slaves * 100.000 / num_frameworks;
       framework.budget_time = 0;
       framework.income = sim->num_slaves * 1.0 / num_frameworks;
+      framework.expenses = 0;
     }
   }
 
@@ -357,6 +358,8 @@ void MesosSimulation::start_task(
     task.slave_id = slave_id;
     this->use_resources(slave_id, task.used_resources);
 
+    VLOG(1) << "Scheduling Task " << task.id() << " on " << slave_id << " at " << now;
+
     static const Resources zero = {0,0,0};
     CHECK_GE(slave.free_resources, zero);
 
@@ -386,6 +389,7 @@ void MesosSimulation::start_task(
 
     if (policy == AUCTION) {
       this->update_budget(f, now);
+      VLOG(2) << f.expenses << " += " << task.rent;
       f.expenses += rent;
       task.rent = rent;
     }
@@ -408,7 +412,7 @@ void MesosSimulation::offer_resources(
   }
   sort(slaves.begin(), slaves.end());
   for (size_t slave_id : slaves) {
-    cerr << "  slave " << slave_id << ": " << resources[slave_id] << endl;
+    cerr << "  slave " << slave_id << ": " << resources[slave_id] << " [ " << allSlaves[slave_id].special_resource << endl;
   }
 
   Framework& f = allFrameworks[framework_id];
@@ -560,6 +564,9 @@ void AuctionEvent::run(MesosSimulation& sim) {
   // - bids
   unordered_map<FrameworkID, vector<vector<Bid>>> all_bids;
   for (const Framework& framework : sim.allFrameworks) {
+    VLOG(1) << "Framework " << framework.id() <<" has..." << endl;
+    VLOG(1) << "   Budget: " << framework.budget;
+    VLOG(1) << " Expenses: " << framework.expenses;
     if (framework.budget < 0) continue;
     vector<vector<Bid>>& bids = all_bids[framework.id()];
     vector<size_t> tasks = framework.eligible_tasks(sim.allTasks, sim.jobs_to_tasks , get_time());
@@ -586,6 +593,9 @@ void AuctionEvent::run(MesosSimulation& sim) {
         double effective_income = framework.income - framework.expenses + framework.budget / time_horizon;
           
         bid.wtp = bid.requested_resources.weight() * effective_income / framework.income;
+        if (sim.allSlaves[bid.slave_id].special_resource){
+            bid.wtp /= task.special_resource_speedup;
+        }
         bids_for_task.push_back(std::move(bid));
       }
       bids.push_back(std::move(bids_for_task));
@@ -671,7 +681,7 @@ void StartTaskEvent::run(MesosSimulation& sim) {
   //Restart making offers, because this new task may be schedulable
       if(!sim.currently_making_offers) {
         sim.currently_making_offers = true;
-        sim.add_event(new OfferEvent( roundUp(this->get_time(), 1000000)));
+        sim.add_event(new OfferEvent( roundUp(this->get_time()+1, 1000000)));
       }
   }
 }
@@ -696,6 +706,7 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
   if (DEBUG) {
     cout << "Time is " << sim.get_clock() << " finished_task " << t_id << endl;
   }
+  VLOG(0) << "Task " << t_id << " finished at time " << get_time();
   sim.release_resources(slave.id(), task.used_resources);
   if (sim.policy == AUCTION) {
     sim.update_budget(framework, get_time());
