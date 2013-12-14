@@ -1,0 +1,557 @@
+% THIS IS SIGPROC-SP.TEX - VERSION 3.1
+% WORKS WITH V3.2SP OF ACM_PROC_ARTICLE-SP.CLS
+% APRIL 2009
+%
+% It is an example file showing how to use the 'acm_proc_article-sp.cls' V3.2SP
+% LaTeX2e document class file for Conference Proceedings submissions.
+% ----------------------------------------------------------------------------------------------------------------
+% This .tex file (and associated .cls V3.2SP) *DOES NOT* produce:
+%       1) The Permission Statement
+%       2) The Conference (location) Info information
+%       3) The Copyright Line with ACM data
+%       4) Page numbering
+% ---------------------------------------------------------------------------------------------------------------
+% It is an example which *does* use the .bib file (from which the .bbl file
+% is produced).
+% REMEMBER HOWEVER: After having produced the .bbl file,
+% and prior to final submission,
+% you need to 'insert'  your .bbl file into your source .tex file so as to provide
+% ONE 'self-contained' source file.
+%
+% Questions regarding SIGS should be sent to
+% Adrienne Griscti ---> griscti@acm.org
+%
+% Questions/suggestions regarding the guidelines, .tex and .cls files, etc. to
+% Gerald Murray ---> murray@hq.acm.org
+%
+% For tracking purposes - this is V3.1SP - APRIL 2009
+
+\documentclass{acm_proc_article-sp}
+
+\begin{document}
+
+\title{Market-based Mechanisms for Resource Scheduling}
+%\subtitle{[Extended Abstract]
+%\titlenote{A full version of this paper is available as
+%\textit{Author's Guide to Preparing ACM SIG Proceedings Using
+%\LaTeX$2_\epsilon$\ and BibTeX} at
+%\texttt{www.acm.org/eaddress.htm}}}
+%
+% You need the command \numberofauthors to handle the 'placement
+% and alignment' of the authors beneath the title.
+%
+% For aesthetic reasons, we recommend 'three authors at a time'
+% i.e. three 'name/affiliation blocks' be placed beneath the title.
+%
+% NOTE: You are NOT restricted in how many 'rows' of
+% "name/affiliations" may appear. We just ask that you restrict
+% the number of 'columns' to three.
+%
+% Because of the available 'opening page real-estate'
+% we ask you to refrain from putting more than six authors
+% (two rows with three columns) beneath the article title.
+% More than six makes the first-page appear very cluttered indeed.
+%
+% Use the \alignauthor commands to handle the names
+% and affiliations for an 'aesthetic maximum' of six authors.
+% Add names, affiliations, addresses for
+% the seventh etc. author(s) as the argument for the
+% \additionalauthors command.
+% These 'additional authors' will be output/set for you
+% without further effort on your part as the last section in
+% the body of your article BEFORE References or any Appendices.
+
+\numberofauthors{3} %  in this sample file, there are a *total*
+% of EIGHT authors. SIX appear on the 'first-page' (for formatting
+% reasons) and the remaining two appear in the \additionalauthors section.
+%
+\author{
+% You can go ahead and credit any number of authors here,
+% e.g. one 'row of three' or two rows (consisting of one row of three
+% and a second row of one, two or three).
+%
+% The command \alignauthor (no curly braces needed) should
+% precede each author name, affiliation/snail-mail address and
+% e-mail address. Additionally, tag each line of
+% affiliation/address with \affaddr, and tag the
+% e-mail address with \email.
+%
+% 1st. author
+\alignauthor
+Paul Christiano
+% 2nd. author
+\alignauthor
+Frank Li
+% 3rd. author
+\alignauthor
+Richard Shin
+%\and  % use '\and' if you need 'another row' of author names
+%% 4th. author
+%\alignauthor Lawrence P. Leipuner\\
+%       \affaddr{Brookhaven Laboratories}\\
+%       \affaddr{Brookhaven National Lab}\\
+%       \affaddr{P.O. Box 5000}\\
+%       \email{lleipuner@researchlabs.org}
+%% 5th. author
+%\alignauthor Sean Fogarty\\
+%       \affaddr{NASA Ames Research Center}\\
+%       \affaddr{Moffett Field}\\
+%       \affaddr{California 94035}\\
+%       \email{fogartys@amesres.org}
+%% 6th. author
+%\alignauthor Charles Palmer\\
+%       \affaddr{Palmer Research Laboratories}\\
+%       \affaddr{8600 Datapoint Drive}\\
+%       \affaddr{San Antonio, Texas 78229}\\
+%       \email{cpalmer@prl.com}
+}
+% There's nothing stopping you putting the seventh, eighth, etc.
+% author on the opening page (as the 'third row') but we ask,
+% for aesthetic reasons that you place these 'additional authors'
+% in the \additional authors block, viz.
+%\additionalauthors{Additional authors: John Smith (The Th{\o}rv{\"a}ld Group,
+%email: {\texttt{jsmith@affiliation.org}}) and Julius P.~Kumquat
+%(The Kumquat Consortium, email: {\texttt{jpkumquat@consortium.net}}).}
+%\date{30 July 1999}
+% Just remember to make sure that the TOTAL number of authors
+% is the number that will appear on the first page PLUS the
+% number that will appear in the \additionalauthors section.
+
+\maketitle
+\begin{abstract}
+Large-scale computing clusters offer potential for greater efficiency through
+pooling of computational resources, but must contend with the problem of
+allocating these resources to users with competitive and potentially
+incompatible demands. Such conflicts are typically arbitrated \emph{fairness}
+criterions, such as dominant resource fairness (DRF), which benefit from their
+simplicity, efficiency, and non-manipulability. Unfortunately, when applied in
+realistic settings---when dealing with inhomogeneous resources, time-varying
+demands, requirements for data locality, etc.---these systems cease to be either
+efficient or non-manipulable.
+
+We propose using prices as an abstraction for subsystems to communicate their
+constraints, and describe a protocol based on auctions for allocating resources
+in a cluster. Our protocol has the key advantage that it can continue to meet
+efficiency guarantees in realistic environments where preferences are
+inhomogeneous across resources and time, and in the presence of adversarial
+manipulation. Moreover, we propose prices as a general mechanism for enforcing a
+clean abstraction between different components of a system, allowing one
+component to make choices intelligently based on constraints elsewhere in the
+system even when it was not designed with knowledge of those constraints.
+
+We implement these ideas in the Mesos cluster manager, along with microeconomic
+``agents'' which allow traditional Mesos clients to interact seamlessly with our
+modified implementation. We show that the computational and communication
+overhead proposed by our system is manageable and that its performance compares
+favorably to existing approaches (particularly DRF) even when users don’t
+provide any meaningful price information. Moreover, we show that when accurate
+economic data is available our system is able to achieve substantially higher
+social welfare than DRF. Finally, we discuss a number of examples where this
+functionality may be useful even in applications where the end-users of the
+system don't have to think about economics at all, and instead prices are
+generated algorithmically as a principled way to accommodate constraints that
+are currently managed in an ad hoc way.
+\end{abstract}
+
+% A category with the (minimum) three required fields
+%\category{H.4}{Information Systems Applications}{Miscellaneous}
+%A category including the fourth, optional field follows...
+%\category{D.2.8}{Software Engineering}{Metrics}[complexity measures, performance measures]
+
+%\terms{Theory}
+
+%\keywords{ACM proceedings, \LaTeX, text tagging} % NOT required for Proceedings
+
+\section{Introduction}
+\subsection{Overview}
+We consider an environment in which a single cluster is used for a variety of
+tasks, which may have very different demands for resources. For example, a
+company might run research tasks in the same cluster as production web services,
+in order to make use of computational resources which would otherwise lie idle
+when web traffic is low. In general, running different tasks in the same cluster
+has the promise of improving utilization and reducing overhead. 
+
+Different tasks may have significantly different demands for resources; some may
+have deadlines on the scale of seconds while others have deadlines of hours or
+days, some may require specialized hardware available on only certain machines,
+some may require using the same machines consistently while others can use
+different machines at different times, some may have complex constraints on data
+locality, etc. 
+
+\subsection{Mesos}
+The Mesos cluster manager is designed to address these problems, and to run
+several independent \emph{frameworks} on a single cluster. Its core design philosophy
+is to make minimal assumptions about the behavior of the frameworks it hosts. To
+this end it allocates resources using ``resource offers,'' and leaves it up to the
+frameworks themselves to decide which resources they will use and which they
+will pass on. Frameworks are free to make these decisions on the basis of the
+detailed specifications of the tasks they want done (for example, to accept
+machines that improve data locality), but Mesos itself makes use of a very
+simple fairness criterion to decide which frameworks receive offers.
+
+The abstraction of resource offers allows Mesos to serve frameworks without
+understanding the constraints they face. By making offers to those frameworks
+which are currently using the least resources, Mesos attempts to ensure that all
+frameworks receive a fair share of the cluster. Because of the simplicity of
+this protocol, it appears to be immune to manipulation (and indeed it has been
+shown to be immune to manipulation in theory).
+
+Unfortunately, while the fairness policy used by Mesos is efficient and
+strategy-proof in a simple one-shot game with homogeneous resources, it is
+neither efficient nor strategy-proof in this setting. For example, a framework
+using Mesos which prefers to run tasks on machines that already have relevant
+data is forced to engage in strategic behavior: given a resource which it
+\emph{could} use now, should it take the resource or decline it, so that it
+might receive a better offer in the future? Solutions to this problem rely on
+simple heuristics which require tuning based on the parameters of the system;
+there are simple examples where the resulting allocations are not efficient
+despite best-efforts of the clients, and in complex examples there is little to
+believe the results are efficient. Moreover, despite being ``strategy-proof'' the
+current design of Mesos is essentially unsuitable for even mildly hostile
+environments; a framework which can use less than its ``fair share'' of the
+resources at any point in time has no incentive to do so, and indeed has every
+incentive to exploit all resources it can be allocated even if they are being
+used arbitrarily inefficiently (and there is always \emph{something} to do with
+idle resources, if only perform proof-of-work in exchange for small amounts of
+money).
+
+\subsection{Microeconomic methods}
+In this paper we confront the challenge of modifying Mesos to provide more
+robust efficiency guarantees, without compromising its agnosticism regarding the
+nature of different frameworks’ desiderata. We propose \emph{price signals} as a
+mechanism for accomplishing this; instead of accepting or rejecting a resource
+offer, a framework can express its preferences by assigning a \emph{willingness
+to pay} for that resource, and Mesos can give the resources to whichever
+frameworks are most willing to pay.
+
+We stress the distinction between this use of price signals and the more typical
+motivation. We are most interested in price signals as an \emph{abstraction} which
+programs can use to express their constraints, rather than as a mechanism to
+extract revenue for the cluster operator or to arbitrate between competing
+external interests. To consider a simple case, suppose there are two programs
+that are contending for a shared resource $R$. Each could either make use of $R$ or
+some alternative resource $R'$ (for example, a different machine in the cluster at
+a different time). Our proposal is to have each program articulate the value of
+resource $R$ (compared to the benchmark of not receiving resource $R$, and then
+contending for resource $R'$ at a later date). The primary alternatives that have
+been considered are:
+\begin{enumerate}
+  \item Ignore the relative value of resource $R$ and $R'$, and make allocation
+    decisions entirely on the basis of fairness considerations (for example by
+    ensuring that each framework has an equal number of every resource). This is
+    the approach taken by Mesos, although it in fact achieves better behavior
+    precisely by \emph{violating} the strategy-proofness of its underlying allocation
+    policy, and providing incentives to frameworks to strategically decline a
+    resource in order to receive a better allocation in the future.
+  \item Understand the entire optimization problem faced by each problem, and
+    make explicit judgments of the relative value of $R$ and $R'$ within the
+    scheduler. This violates the spirit of Mesos, and in general appears to be
+    difficult given the complexity and scale of the cluster scheduling problem.
+\end{enumerate}
+
+\subsection{Guide to the paper}
+In section 2, we make the theoretical case for using microeconomic methods. We
+provide a litany of examples in which existing approaches, and in particular
+DRF, fail to be either efficient or strategy-proof, and describe examples of
+strategic behavior in Mesos. We discuss a number of examples in which economic
+data generated \emph{within} the system could be useful, and compare this approach to a
+number of ad hoc approaches currently pursued to solve similar problems.
+
+In section 3, we describe our protocol and the most important design decisions
+we made. In particular, we describe the mechanisms we used to ensure that our
+protocol remains backwards-compatible, and can be applied without any change to
+the clients’ code.
+
+In section 4, we describe our implementation of this protocol within Mesos. 
+
+In section 5, we report on experimental comparisons between our results and
+existing approaches: (a) we evaluate the computational and communication
+overhead of our approach and show that it is manageable, (b) we compare our
+system in ``backwards-compatibility mode,'' without any economic information
+whatsoever, to DRF, and show that it performs comparably whether judged by
+utilization or fairness, (c) we examine a number of cases in which economic
+information is available; we show that in general our algorithms achieve higher
+social efficiency than DRF, and provide natural examples in which DRF fails to
+be Pareto efficient.
+
+\section{The case for microeconomic scheduling}
+\subsection{Scheduling is hard}
+Consider the following typical situations within a cluster:
+\begin{enumerate}
+  \item Some clients have regular throughput and flexible deadlines, while some
+    clients have hard real-time constraints and variable traffic.
+  \item Different tasks make use of different characteristics of hardware on
+    machines in the cluster, for example high ratios of RAM to CPU on a
+    particular machine, or GPUs or other hardware that is available on only
+    certain machines.
+  \item Tasks require data which is located on disk or even in memory somewhere
+    in the cluster, and co-locating the tasks with the data improves
+    performance.
+\end{enumerate}
+In each of these examples, clients of the cluster have preferences over
+allocations which are difficult to precisely express. It would be possible but
+difficult to cover just these cases, but the reader can doubtless generate many
+similar cases, and as the environment changes the nature of these constraints is
+likely to continue to change as well. 
+
+Mesos is able to schedule even in the face of such constraints, by making
+resource offers to clients and allowing them to accept or reject resources
+according to whether they satisfy their constraints. But this is approach offers
+little granularity to clients, forces them to adopt brittle heuristics, and
+moreover compromises the guarantees of the fairness policies Mesos uses to
+decide how to make resource offers.
+
+Mesos uses a fair-share scheduler based on dominant resource fairness. This
+means that the client to receive the next resource offer is the one who is
+currently using the minimum share of the resource they are using the \emph{most}
+of (relative to the total supply in the cluster). A weighted version can be
+defined analogously. 
+
+Consider a client of Mesos who is interested in receiving a machine with
+characteristic X, because it would allow their task to run 20\% faster (or
+perhaps because it would allow them to run a task which is slightly higher
+priority than the task they would run on a machine without characteristic X).
+Given an offer for a machine without characteristic X, what should this client
+do? The formal guarantee of ``strategy-proofness'' suggests the client would take
+it; indeed, to do otherwise would explicitly be strategic. But in fact, we hope
+that clients will yield a highly-contended resource when they can use an
+alternative, or will yield a typical resource if they could make particularly
+good use of an alternative. And indeed this is done by many clients to Mesos.
+
+This example clearly shows that in this case, the mechanism provided by Mesos is
+\emph{not} strategy-proof. Worse, it’s not Pareto efficient if people are
+honest, and need not be Pareto efficient if clients behave optimally. Similar
+things happen in the other examples we mentioned, or in most of the similar
+alternatives which we can envision:
+\begin{enumerate}
+  \item When one client has a constant stream of work and another has varying
+    traffic, Mesos encourages both to constantly use up their allocated share of
+    the network (unless they have nothing to do with the space). But an
+    efficient allocation would give the client with varying workload more
+    resources when it has more work. 
+  \item Mesos gives a valuable resource to whatever client happens to be using
+    the fewest resources when that machine becomes available. This encourages
+    clients to inefficiently decline resources which they could use, so that
+    they will be offered better resources in the future. This may decrease
+    utilization, and moreover it provides little guarantee that a valuable
+    resource will be used by the framework which most values it---instead it will
+    be used by whichever framework uses the least resources.
+  \item If a client is waiting for a machine that is co-located with some data
+    that their task needs, then Mesos encourages them to guess how likely that
+    resource is to be freed up soon, and to decline new resources if this
+    probability is high enough. This is actually much more efficient behavior
+    than if the client behaved honestly by accepting whatever resources it could
+    use, but it provides some indication that the ``guarantees'' of DRF are not
+    directly applicable to the situations Mesos is intended to cover.
+  \end{enumerate}
+
+These shortcomings are not specific to DRF; these will be issues for any
+scheduler which treats the scheduling problem as a one-shot game with
+homogeneous resources when in fact it is more complicated. Theoretical
+guarantees are not likely to be meaningful in this regime. To evaluate proposed
+solutions, we suggest a combination of:
+\begin{enumerate}
+  \item Theoretical analyses which apply in realistic contexts
+  \item Experimental evidence for effectiveness
+\end{enumerate}
+We provide strong evidence that our proposal is at least not inferior to DRF on
+either of these grounds, and we provide some evidence that even our highly
+preliminary implementation is already superior.
+
+\subsection{Existing approaches}
+Many difficulties with scheduling have been isolated and addressed, typically by
+ad hoc mechanisms which require tuning and don't necessarily play nicely with
+each other. In order to contrast these approaches with microeconomic methods, we
+list some examples of solutions to these problems here. Note that we will not be
+able to solve all of these problems within our proposal---that would be an
+extraordinarily ambitious project. We list these examples to give some sense of
+how a microeconomic framework could be used to replace ad hoc approaches,
+improving robustness and ease-of-design. In contrast, our goal in this paper is
+simply to show that microeconomic approaches really are a feasible option, and
+that in the ``base case'' they are as good as existing solutions.
+
+\paragraph{Deadlines} DRF makes no provision for coping with deadlines, which
+are often of considerable practical importance. The Jockey system enforces
+deadlines in the context of a fair-share scheduler, by increasing or decreasing
+a task's share of the cluster depending on the importance of their deadline.
+While this is a significant improvement over the alternative, we find it a very
+crude solution to the underlying problem:
+\begin{enumerate}
+  \item Jockey has no dependence on how important resources currently are for
+    the cluster, it just assigns a job as many resources as are needed to meet
+    its deadline.
+  \item It is not clear how to generalize Jockey to systems where multiple
+    simultaneous tasks have deadlines, or where meeting deadlines must be
+    balanced against any other consideration.
+  \item Jockey changes the allocations of tasks depending on their performance,
+    and will typically invalidate any guarantees provided by the original
+    scheduler.
+  \item Jockey does not have any principled approach for reasoning about the
+    error bars on a task's completion time (instead this is determined by a
+    fine-tuned parameter of the system).
+  \item Jockey cannot reason about multiple deadlines of varying importance, but
+    instead gives a job as many resources as it needs to finish as soon as it
+    would be useful.
+\end{enumerate}
+
+The microeconomic alternative makes use of Jockey's core component, an estimate
+for the time required to complete a task, but uses a different control system.
+In the microeconomic framework a deadline is associated with an economic value
+(that might be algorithmically generated based on the priority of the task)
+which can be compared to the economic value of other activity in the cluster.
+The importance of resources to the task is then given by the effect those
+resources will have on the task's probability of completing by deadline, and
+this can be compared to the importance of those resources to other processes
+running on the cluster. Resources can then be shifted until these two values are
+equal.
+
+\paragraph{Priority and preemption} In existing systems priority is typically
+implemented as an absolute ordering; a task of high priority can preempt a task
+of lower priority and always wins in contention for resources. This approach is
+conceptually problematic because there are always mechanisms for a
+higher-priority process to improve performance by increasing its resource usage
+(for example speculative execution, or increased duplication of straggling
+processes) and an infinite tradeoff between the performance of high-priority and
+low-priority processes is undesirable. In practice, this approach relies on
+``reasonable'' behavior by high-priority processes, which makes reasoning about
+systems difficult. Such systems are also brittle and prone to priority
+inversions, in which low-priority processes can be inadvertently elevated to
+high-priority.
+
+Another approach is to assign tasks of different types appropriate shares of a
+cluster. But this approach also fails to capture what we really care about. For
+example, we would like high priority processes to expand their use of the
+cluster when they need it. 
+
+These problems are considerably exacerbated when we consider preemption,
+especially if preemption is costly for the preempted process: when should a low
+priority process be allowed to finish, and when should it be preempted?
+
+Microeconomic methods allow for a principled answer to these questions: by
+describing ``high priority'' tasks by \emph{how much more} we care about them
+finishing faster, we can make principled tradeoffs. 
+
+\paragraph{Data locality} Many tasks run more efficiently when they are
+co-located with data. At the moment, this is typically achieved either by
+explicit optimization (requiring the scheduler to be aware of detailed
+characteristics of the tasks its scheduling) or by heuristics, for example
+blocking for 5 seconds before accepting an offered resource which is not local
+to data. Again, microeconomic methods provide a principled approach which is
+compatible with a lightweight interface between client and scheduler: a client
+can estimate how much more slowly a task will run on a machine without the data,
+can estimate how likely a machine with the data is to become free, and can
+thereby estimate how much of a discount they would need to be offered before
+they would accept a machine without their data.
+
+\subsection{Philosophical motivation}
+Our primary motivation is strongly to maximize efficiency, rather than other
+measures such as utilization, fairness, or strategy-proofness. We view other
+characteristics as necessary insofar as they help achieve efficiency. 
+
+In some sense this is problematic, because efficiency is typically unmeasurable.
+But there are a number of pragmatically relevant implications:
+\begin{enumerate}
+  \item Pareto efficiency is a minimal standard for acceptability. To the extent
+    that existing approaches fail to be Pareto efficient, this is much more
+    damning than a possible failure to be strategy-proof (as long as the
+    possibility of manipulation does not in itself destroy our efficiency
+    guarantee!)
+  \item Even where true prices are unavailable, we think in terms of the real,
+    unobserved value of an outcome (such as finishing a computation or meeting a
+    deadline). Many existing schemes need to implicitly make judgments about
+    these values (because they are making tradeoffs between different outcomes).
+    So we don't treat the difficulty of assigning values to outcomes as a
+    deal-breaker; to the extent that we already need to make implicit tradeoffs,
+    reifying those tradeoffs is only likely to help us improve the situation.
+\end{enumerate}
+
+\subsection{Why microeconomic methods?}
+The basic paradigm we propose is conceptually simple, though is associated with
+many practical difficulties. At each stage where we need to make a decision, we
+propose:
+\begin{enumerate}
+  \item Estimate the value of different outcomes.
+  \item Estimate the outcomes that will result from different decisions.
+  \item Compute the value of different decisions.
+\end{enumerate}
+    
+This paradigm has the virtue of being modular in a number of important respects:
+\begin{enumerate}
+  \item The notion of value provides a unifying framework for different
+    components to communicate with each other; if I am one component providing a
+    service to some client, and I know how valuable different outcomes are to my
+    client, I know everything I need to know; my policy does not need to depend
+    on anything else about the client.
+  \item I can improve and reason about the prediction of outcomes and the
+    estimates of value separately. 
+  \item It is often possible to compute the value straightforwardly, given the
+    values stated  by my clients. For example, if I am scheduling a MapReduce
+    instance and know that a 1 second delay costs my client 1 unit, then I can
+    estimate the cost of a 1 second delay in one of my tasks simply by
+    estimating (or using a crude heuristic for) the probability that this task
+    is on the critical path.
+\end{enumerate}
+
+%
+% The following two commands are all you need in the
+% initial runs of your .tex file to
+% produce the bibliography for the citations in your paper.
+\bibliographystyle{abbrv}
+\bibliography{sigproc}  % sigproc.bib is the name of the Bibliography in this case
+% You must have a proper ".bib" file
+%  and remember to run:
+% latex bibtex latex latex
+% to resolve all references
+%
+% ACM needs 'a single self-contained file'!
+%
+%APPENDICES are optional
+%\balancecolumns
+%\appendix
+%Appendix A
+%\section{Headings in Appendices}
+%The rules about hierarchical headings discussed above for
+%the body of the article are different in the appendices.
+%In the \textbf{appendix} environment, the command
+%\textbf{section} is used to
+%indicate the start of each Appendix, with alphabetic order
+%designation (i.e. the first is A, the second B, etc.) and
+%a title (if you include one).  So, if you need
+%hierarchical structure
+%\textit{within} an Appendix, start with \textbf{subsection} as the
+%highest level. Here is an outline of the body of this
+%document in Appendix-appropriate form:
+%\subsection{Introduction}
+%\subsection{The Body of the Paper}
+%\subsubsection{Type Changes and  Special Characters}
+%\subsubsection{Math Equations}
+%\paragraph{Inline (In-text) Equations}
+%\paragraph{Display Equations}
+%\subsubsection{Citations}
+%\subsubsection{Tables}
+%\subsubsection{Figures}
+%\subsubsection{Theorem-like Constructs}
+%\subsubsection*{A Caveat for the \TeX\ Expert}
+%\subsection{Conclusions}
+%\subsection{Acknowledgments}
+%\subsection{Additional Authors}
+%This section is inserted by \LaTeX; you do not insert it.
+%You just add the names and information in the
+%\texttt{{\char'134}additionalauthors} command at the start
+%of the document.
+%\subsection{References}
+%Generated by bibtex from your ~.bib file.  Run latex,
+%then bibtex, then latex twice (to resolve references)
+%to create the ~.bbl file.  Insert that ~.bbl file into
+%the .tex source file and comment out
+%the command \texttt{{\char'134}thebibliography}.
+%% This next section command marks the start of
+%% Appendix B, and does not continue the present hierarchy
+%\section{More Help for the Hardy}
+%The acm\_proc\_article-sp document class file itself is chock-full of succinct
+%and helpful comments.  If you consider yourself a moderately
+%experienced to expert user of \LaTeX, you may find reading
+%it useful but please remember not to change it.
+\balancecolumns
+% That's all folks!
+\end{document}
