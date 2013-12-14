@@ -106,7 +106,6 @@ class MesosSimulation : public Simulation<MesosSimulation> {
   Indexer<Job> allJobs;
 
   size_t round_robin_next_framework;
-  unordered_map<size_t, int> framework_num_tasks_available;
   // A mapping from jobs to the IDs of the tasks which depend on these jobs.
   unordered_multimap<size_t, size_t> job_dependents;
 
@@ -176,6 +175,8 @@ void trace_workload(
 
   allJobs.add(0); // Dummy job with 0 tasks so that real jobs begin at ID 1.
 
+  unordered_map<size_t, double> framework_join_time;
+
   string line;
   ifstream trace(FLAGS_trace);
   CHECK(trace.is_open()) << FLAGS_trace << " not opened";
@@ -198,6 +199,14 @@ void trace_workload(
     task.task_time = split_v[3] - split_v[2];
     task.start_time = split_v[2];
     task.special_resource_speedup = split_v[10];
+
+    if(framework_join_time.count(task.framework_id) == 0) {
+      framework_join_time[task.framework_id] = task.start_time;
+    } else if (framework_join_time.count(task.framework_id) > 0) {
+      framework_join_time[task.framework_id] = min( framework_join_time[task.framework_id], task.start_time);
+    }
+    assert(framework_join_time.count(task.framework_id) > 0);
+
     // Add dependencies of task
     for(int i = 11; i < split_v.size(); i++) {
       CHECK_NE(split_v[i], task.job_id) << "Self-dependency not allowed";
@@ -235,6 +244,10 @@ void trace_workload(
       job->start_time = task.start_time;
     }
   }
+  for(auto& kv : framework_join_time) {
+    sim->add_event(new OfferEvent(framework_join_time[kv.first] + 1));
+  }
+
   trace.close();
 }
 
@@ -348,14 +361,6 @@ void MesosSimulation::start_task(
       f.cpu_share, f.mem_share, f.disk_share
     });
 
-    CHECK_GT(framework_num_tasks_available.count(f.id()), 0);
-    framework_num_tasks_available[f.id()] -= 1;
-    CHECK_GE(framework_num_tasks_available[f.id()], 0);
-    if (framework_num_tasks_available[f.id()] == 0) {
-      framework_num_tasks_available.erase(f.id());
-      CHECK_EQ(framework_num_tasks_available.count(f.id()), 0);
-    }
-   
     double task_runtime = task.task_time;
     if (slave.special_resource) task_runtime *= task.special_resource_speedup;	
     slave.curr_tasks.insert(task.id());
@@ -444,7 +449,7 @@ void OfferEvent::run(MesosSimulation& sim) {
     run_drf(sim);
   }
   // Offer again in 1 second if we should be making offers anyways
-  if (sim.currently_making_offers)
+  if (sim.currently_making_offers && fmod(this->get_time(), 1000000)==0)
     sim.add_event(new OfferEvent(this->get_time() + 1000000));
 
   //cout << "Offers made at time " << << endl;
@@ -471,19 +476,15 @@ void OfferEvent::run_round_robin(MesosSimulation& sim) {
 
 void OfferEvent::run_drf(MesosSimulation& sim) {
 
-  assert(sim.currently_making_offers);
+  //assert(sim.currently_making_offers);
   double min_dominant_share = 1.0;
   double next_id = 0;
   bool make_offer = false;
-  for (auto it = sim.framework_num_tasks_available.begin();
-     it != sim.framework_num_tasks_available.end();
-     it++ ) {
-    Framework& framework = sim.allFrameworks[it->first];
-    assert(sim.framework_num_tasks_available.count(framework.id()) > 0);
-    if ( already_offered_framework.count(framework.id()) > 0) continue;
+  for (auto& framework : sim.allFrameworks ) {
+    if (framework.eligible_tasks(sim.allTasks, sim.allJobs, get_time()).size() == 0) continue;
     double dominant_share = framework.dominant_share;
-    if (DEBUG) {
-      cout << "DRF computes dominant share for framework " << framework.id()
+    if (true) {
+      sim.output << get_time() << " DRF computes dominant share for framework " << framework.id()
            << " is " << dominant_share << endl;
     }
     if (dominant_share <= min_dominant_share) {
@@ -496,22 +497,7 @@ void OfferEvent::run_drf(MesosSimulation& sim) {
   // Offer everything to the most dominant-resource-starved framework, 
   // only if there exists tasks to schedule
   if (make_offer) {
-    already_offered_framework[next_id] = true;
-
-    bool all_offered = true;
-    for ( auto it = sim.framework_num_tasks_available.begin(); it != sim.framework_num_tasks_available.end(); it++) {
-      if(already_offered_framework.count(it->first) == 0){
-        all_offered = false;
-        break;
-      }
-    }
-    if (all_offered) {
-      //cout << "All offers made after this round!" << endl;
-      sim.currently_making_offers = false;
-      already_offered_framework.clear();
-    }
-
-//    cout << "Making offer to " << next_id << endl;
+    sim.output << "DRF making offer to " << next_id << endl;
     sim.offer_resources(next_id, sim.all_free_resources(), get_time());
   } else {
     sim.currently_making_offers = false;
@@ -641,11 +627,6 @@ void StartTaskEvent::run(MesosSimulation& sim) {
   double f_id = this->_framework_id;
   Framework& f = sim.allFrameworks[f_id];
 //  cout << "Starting task at time " << this->get_time() << " for framework " << f_id << endl;
-  if(sim.framework_num_tasks_available.count(f.id()) == 0) {
-    sim.framework_num_tasks_available[f.id()] = 1;
-  } else {
-    sim.framework_num_tasks_available[f.id()] += 1;
-  }
 
   if (sim.policy == AUCTION){
     if (!sim.ready_for_auction){

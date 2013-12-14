@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -g -O4 -march=native -std=c++0x -Wall
+CXXFLAGS = -g -O4 -march=native -std=c++0x
 LIBS = -lglog -lgflags
 
 mesosSim : mesosSim.o auction.o shared.o mesos.o

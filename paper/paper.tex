@@ -61,7 +61,7 @@
 % without further effort on your part as the last section in
 % the body of your article BEFORE References or any Appendices.
 
-\numberofauthors{3} %  in this sample file, there are a *total*
+\numberofauthors{1} %  in this sample file, there are a *total*
 % of EIGHT authors. SIX appear on the 'first-page' (for formatting
 % reasons) and the remaining two appear in the \additionalauthors section.
 %
@@ -77,14 +77,10 @@
 % e-mail address with \email.
 %
 % 1st. author
-\alignauthor
-Paul Christiano
+\alignauthor Paul Christiano, Frank Li, Richard Shin \\
 % 2nd. author
-\alignauthor
-Frank Li
 % 3rd. author
-\alignauthor
-Richard Shin
+\email{\{paulchristiano, frankli, ricshin\}@cs.berkeley.edu}
 %\and  % use '\and' if you need 'another row' of author names
 %% 4th. author
 %\alignauthor Lawrence P. Leipuner\\
@@ -119,6 +115,21 @@ Richard Shin
 
 \maketitle
 \begin{abstract}
+
+\end{abstract}
+
+% A category with the (minimum) three required fields
+%\category{H.4}{Information Systems Applications}{Miscellaneous}
+%A category including the fourth, optional field follows...
+%\category{D.2.8}{Software Engineering}{Metrics}[complexity measures, performance measures]
+
+%\terms{Theory}
+
+%\keywords{ACM proceedings, \LaTeX, text tagging} % NOT required for Proceedings
+
+\section{Introduction}
+\label{sec:intro}
+
 Large-scale computing clusters offer potential for greater efficiency through
 pooling of computational resources, but must contend with the problem of
 allocating these resources to users with competitive and potentially
@@ -143,7 +154,7 @@ We implement these ideas in the Mesos cluster manager, along with microeconomic
 ``agents'' which allow traditional Mesos clients to interact seamlessly with our
 modified implementation. We show that the computational and communication
 overhead proposed by our system is manageable and that its performance compares
-favorably to existing approaches (particularly DRF) even when users don’t
+favorably to existing approaches (particularly DRF) even when users do not
 provide any meaningful price information. Moreover, we show that when accurate
 economic data is available our system is able to achieve substantially higher
 social welfare than DRF. Finally, we discuss a number of examples where this
@@ -151,19 +162,39 @@ functionality may be useful even in applications where the end-users of the
 system don't have to think about economics at all, and instead prices are
 generated algorithmically as a principled way to accommodate constraints that
 are currently managed in an ad hoc way.
-\end{abstract}
 
-% A category with the (minimum) three required fields
-%\category{H.4}{Information Systems Applications}{Miscellaneous}
-%A category including the fourth, optional field follows...
-%\category{D.2.8}{Software Engineering}{Metrics}[complexity measures, performance measures]
+\subsection{Guide to the paper}
 
-%\terms{Theory}
+In section \ref{sec:overview}, we provide a brief overview of Mesos and how it
+could incorporate microeconomic mechanisms.
 
-%\keywords{ACM proceedings, \LaTeX, text tagging} % NOT required for Proceedings
+In section \ref{sec:case}, we make the theoretical case for using microeconomic methods. We
+provide a litany of examples in which existing approaches, and in particular
+DRF, fail to be either efficient or strategy-proof, and describe examples of
+strategic behavior in Mesos. We discuss a number of examples in which economic
+data generated \emph{within} the system could be useful, and compare this approach to a
+number of ad hoc approaches currently pursued to solve similar problems.
 
-\section{Introduction}
-\subsection{Overview}
+In section \ref{sec:design}, we describe our protocol and the most important design decisions
+we made. In particular, we describe the mechanisms we used to ensure that our
+protocol remains backwards-compatible, and can be applied without any change to
+the clients’ code.
+
+In section \ref{sec:eval}, we report on simulated comparisons between our
+design and existing approaches: (a) we evaluate the computational and communication
+overhead of our approach and show that it is manageable, (b) we compare our
+system in ``backwards-compatibility mode,'' without any economic information
+whatsoever, to DRF, and show that it performs comparably whether judged by
+utilization or fairness, (c) we examine a number of cases in which economic
+information is available; we show that in general our algorithms achieve higher
+social efficiency than DRF, and provide natural examples in which DRF fails to
+be Pareto efficient.
+
+
+
+\section{Overview}
+\label{sec:overview}
+
 We consider an environment in which a single cluster is used for a variety of
 tasks, which may have very different demands for resources. For example, a
 company might run research tasks in the same cluster as production web services,
@@ -218,7 +249,7 @@ money).
 \subsection{Microeconomic methods}
 In this paper we confront the challenge of modifying Mesos to provide more
 robust efficiency guarantees, without compromising its agnosticism regarding the
-nature of different frameworks’ desiderata. We propose \emph{price signals} as a
+nature of different frameworks' desiderata. We propose \emph{price signals} as a
 mechanism for accomplishing this; instead of accepting or rejecting a resource
 offer, a framework can express its preferences by assigning a \emph{willingness
 to pay} for that resource, and Mesos can give the resources to whichever
@@ -249,32 +280,10 @@ been considered are:
     difficult given the complexity and scale of the cluster scheduling problem.
 \end{enumerate}
 
-\subsection{Guide to the paper}
-In section 2, we make the theoretical case for using microeconomic methods. We
-provide a litany of examples in which existing approaches, and in particular
-DRF, fail to be either efficient or strategy-proof, and describe examples of
-strategic behavior in Mesos. We discuss a number of examples in which economic
-data generated \emph{within} the system could be useful, and compare this approach to a
-number of ad hoc approaches currently pursued to solve similar problems.
-
-In section 3, we describe our protocol and the most important design decisions
-we made. In particular, we describe the mechanisms we used to ensure that our
-protocol remains backwards-compatible, and can be applied without any change to
-the clients’ code.
-
-In section 4, we describe our implementation of this protocol within Mesos. 
-
-In section 5, we report on experimental comparisons between our results and
-existing approaches: (a) we evaluate the computational and communication
-overhead of our approach and show that it is manageable, (b) we compare our
-system in ``backwards-compatibility mode,'' without any economic information
-whatsoever, to DRF, and show that it performs comparably whether judged by
-utilization or fairness, (c) we examine a number of cases in which economic
-information is available; we show that in general our algorithms achieve higher
-social efficiency than DRF, and provide natural examples in which DRF fails to
-be Pareto efficient.
 
 \section{The case for microeconomic scheduling}
+\label{sec:case}
+
 \subsection{Scheduling is hard}
 Consider the following typical situations within a cluster:
 \begin{enumerate}
@@ -492,6 +501,17 @@ This paradigm has the virtue of being modular in a number of important respects:
     is on the critical path.
 \end{enumerate}
 
+\section{Market-based Mechanism Design}
+\label{sec:design}
+
+\section{Evaluation}
+\label{sec:eval}
+
+\section{Future Works}
+\label{sec:future}
+
+\section{Conclusion}
+\label{sec:conclusion}
 %
 % The following two commands are all you need in the
 % initial runs of your .tex file to
