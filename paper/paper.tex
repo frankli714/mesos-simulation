@@ -507,8 +507,34 @@ This paradigm has the virtue of being modular in a number of important respects:
 \section{Market-based Mechanism Design}
 \label{sec:design}
 
-\section{Evaluation}
+\section{Experimental Evaluation}
 \label{sec:eval}
+
+To evaluate the performance of the market-based mechanism compared with DRF,
+we implemented an event-based simulation of Mesos with both resource scheduling algorithms.
+We study the performance of DRF and the market-based mechanism both when pricing information is not available and a default bidding policy must be used, and when pricing information is specified under a specific policy. These simulations were run under a statistical workload generated from a month-long Google cluster trace \cite{TODO}.
+
+\subsection{Simulation Implementation\\}
+
+Our evaluation is conducted through an event-based simulator of Mesos, implemented with both the DRF and the auction-based resource scheduling algorithms. We chose to use simulations because it allowed for simplified evaluation over a variety of environmental variables, such as the number of nodes in the cluster or resources per node, and provided an efficient method for testing various bidding policies. Our simulator was implemented in C++ using approximately 1200 lines of code.
+
+The simulations were run on synthetic workloads generated from the statistical distributions of a month-long Google cluster trace. The Google traces, captured during May 2011, identify cluster jobs as well as the tasks that compose each job. For each task that finishes successfully (without failing or being terminated), we extract the start and finish times, priority information, and normalized resource requests for CPU cores, RAM, and local disk space. The traces indicated that jobs were heavily CPU-bound. We assume tasks run under the amount of resources requested and the task execution times are simply the differences between the finish and start times. We generate workloads that follows the same statistical distribution as this extracted data. The benefit of this statistical workload approach is that we can generate various synthetic workloads that model a real-world workload.
+
+\subsection{Performance Without Pricing\\}
+
+Currently, Mesos jobs and tasks are not attached to economic indicators, since DRF does not rely on any economic-based resource scheduler. Even if a market-based mechanism was used, many cluster jobs and tasks may not be able or willing to provide accurate pricing data. In the absence of this information, our scheme provides a default bidding policy. This ``backwards-compatible" mode must still perform comparable with DRF, especially given the current state of job requests.
+
+To investigate this feature, we ran our simulator using both DRF and the market-based mechanism under the default bidding policy. We ran under two cluster environments, a 25-node cluster to simulate high resource contention, and a 100-node cluster to simulate a light workload. All nodes were homogeneous, with normalized CPU, RAM, and disk resources of 1. We ran using a statistical workload for five computing frameworks, each submitting 20 jobs in parallel. For each environment, we evaluated the resource utilization and job completion times of DRF and the market-based mechanism.
+
+Figures CPU-UTILIZATION and RAM-UTILIZATION show the CPU and RAM utilizations of DRF and the market-based mechanism in the high contention environment. As noted, the Google traces indicated cluster jobs were primarily CPU-bound, and hence the cluster witnesses near-maximal CPU utilization but lower RAM utilization. Figure CPU-UTILIZATION indicates that the utilization achieved by DRF and the default bidding policy are nearly identical. The average DRF utilization is approximately 98\%, while the market-based mechanism is approximately 99\%. Note the graph begins after 10 hours, when consistent maximum contention is reached. Figure RAM-UTILIZATION depicts the memory utilization, showing again the similar performance between DRF and the market-based mechanism. DRF's average memory utilization is TODO\%, while the market-based mechanism's average memory utilization is TODO\%. We do not show the disk utilization because very few jobs in the Google traces used local disk space (presumably instead relying on the Google File System).
+
+Figure CPU-UTILIZATION-LOW shows the CPU utilizations of DRF and the market-based mechanism in a low contention environment, when no resource is fully utilized. As we can see, DRF and the market-based mechanism perform nearly identical. Both policies have an average CPU utilization of 44\%. We elide the memory and disk utilization figures because they repeat the same story, but are less interesting due to the lower RAM and disk resource requirements of jobs.
+
+Finally, Figure JOB-COMPLETION displays the progression of workload completion under both scheduling policies. When all tasks of a job are completed, the job is considered finished. The graph shows the fraction of complete jobs as time progresses. Again, both policies result in similar behaviour, completing the workload in nearly identical fashion.
+
+All of these results are gathered when the market-based mechanism uses a default bidding policy because the job requests provide no economic information. This shows that the market-based mechanism is ``backwards-compatible" by providing comparable performance to DRF when pricing information is not used. This result is not completely surprising though, because the default bidding policy behaves similarly to DRF. DRF awards resources to the framework with the least dominant share. Under our default bidding policy, frameworks bid a proportion of their current budget. The framework that has been awarded the least resources will have the highest budget (through less spending on resources), and will be able to bid the highest. Hence the low-resource framework will be awarded the next resource offer, similarly to DRF.
+
+\subsection{Performance With Pricing}
 
 
 
@@ -517,6 +543,11 @@ This paradigm has the virtue of being modular in a number of important respects:
 
 \section{Conclusion}
 \label{sec:conclusion}
+
+\section{Acknowledgement}
+
+We thank Professors Anthony Joseph and John Kubiatowicz for guidance and numerous suggestions throughout the course of this project. Also, we thank Charles Reiss for providing helpful tips on how best to use the Google cluster traces. Finally, we thank Ali Ghodsi for providing meaningful discussion into the theory behind our market-based mechanism.
+
 %
 % The following two commands are all you need in the
 % initial runs of your .tex file to
