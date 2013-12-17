@@ -653,7 +653,20 @@ willingness to pay, which indicates that there is too much competition driving
 up the price to profitably run the task on the cluster at this time.
 
 \subsection{Bidding policy}
-Given a set of tasks it wishes to run, the framework must 
+Within our setting, the framework must associate a willingness to pay with each
+task it wishes to run. We now describe some reasonable ways for the frameworks
+to do so.
+
+\paragraph{Default policy} For backwards compatibility, we want to be able to
+use existing Mesos frameworks which are not aware of prices. For these, we
+define a default bidding policy which assumes that all tasks are equally
+important.
+
+Intuitively, a framework with higher income can afford to have a higher
+willingness to pay. A framework which has accumulated a lot of money can also
+afford to pay more, at least for a limited amount of time before its balance is
+exhausted. Also, tasks which require more resources should have a
+correspondingly higher willingness to pay.
 
 \section{Experimental Evaluation}
 \label{sec:eval}
