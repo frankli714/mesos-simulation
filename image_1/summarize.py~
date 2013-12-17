@@ -1,0 +1,22 @@
+import sys
+
+LOWER = 50000
+UPPER = 182000
+STEP = 100
+
+with open(sys.argv[1], 'r') as f:
+    pts = [(float(x.split(" ")[0]), float(x.split(" ")[1]) / float(x.split(" ")[2])) for x in f]
+
+index = 0
+smoothed = []
+for i in range(LOWER, UPPER, STEP):
+    in_range = [pts[index]]
+    while pts[index][0] < i + STEP:
+        index+=1
+        if index < len(pts):
+            in_range.append(pts[index])
+    smoothed.append((sum(x[0] for x in in_range)/len(in_range), sum(x[1] for x in in_range)/len(in_range)))
+
+with open(sys.argv[2], 'w') as f:
+    for x in smoothed:
+        f.write("{} {}\n".format(x[0], x[1]))
