@@ -28,6 +28,9 @@
 
 \documentclass{acm_proc_article-sp}
 
+\usepackage{mathtools}
+\usepackage{graphicx}
+
 \begin{document}
 
 \title{Market-based Mechanisms for Resource Scheduling}
@@ -563,6 +566,47 @@ Proof:
 
 \section{Market-based Mechanism Design}
 \label{sec:design}
+\subsection{Setting}
+Our mechanism assumes three types of participants: a single \emph{master} for
+the cluster which manages a large number of \emph{slaves} serving as a pool of
+compute resources. The users of the system are represented by \emph{frameworks},
+which communicate with the master to request resources on slaves, and use the
+obtained resources to run \emph{tasks} on the slaves.
+
+These participants generally run as daemons on the cluster.  Typically, a single
+cluster would consist of up to tens of thousands of machines, each of which
+running a slave process. A single master process (or multiple redundant ones
+for reliability) communicates directly with all slave processes.  Each slave
+process manages the tasks which run on its machine, handling requests to start
+and stop various tasks from the master.
+
+The frameworks representing the clusters also run as daemons and register
+themselves with the master. They communicate exclusively with the master, which
+mediates all needed communication with the slaves, such as details on the task
+to be run.
+
+\subsection{Budgets and income}
+The master keeps track of a budget for each framework: its current balance and
+the amount of income it receives per second. The automatically adjusts a
+framework's balance when it performs actions which require payment. Currently,
+we allow a framework to incur a negative income (if it is spending beyond its
+means) and also a negative balance (if negative income lasts long enough to
+remove all of the savings) for simplicity.
+
+\subsection{Resource offers and bidding}
+Periodically, when there are resources currently available, the master will
+send a \emph{resource offer} message to all registered frameworks to invite them
+to participate in an upcoming auction. Each framework then submits a package of
+bids, which we can consider a function of the form
+\[ \mathcal{B}: \mathbf{T}^n \rightarrow \mathbf{R}. \]
+where there are $n$ slaves, $T$ is a task (containing an amount of desired
+resources on a single slave) and $\mathbf{R}$ is a willingness to pay for the
+list of tasks $\mathbf{T}^n$.
+
+A naive representation of this function would use an exponential amount of
+space, given that each of the $n$ values in $\mathbf{T}^n$ can vary
+independently. While we can consider several methods for restricting the set of
+possible 
 
 \section{Experimental Evaluation}
 \label{sec:eval}
