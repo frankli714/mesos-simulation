@@ -1,6 +1,6 @@
 from collections import defaultdict
 import argparse
-import pickle
+import cPickle as pickle
 from random import *
 import sys
 
@@ -66,7 +66,7 @@ def generate_tasks(statistics, frameworks, n, acceleration=False):
     if type(frameworks) == int:
         frameworks = range(frameworks)
     while len(result) < n:
-        framework = choice(frameworks)
+        framework = choice(frameworks[:len(frameworks)/2] + 4*frameworks[len(frameworks)/2:])
         tasks = sample_tasks(jobs, counts, acceleration)
         for task in tasks:
             task['task_id'] = task_id
@@ -89,6 +89,13 @@ def print_tasks(tasks, filename="synthetic_workload.txt", num_users =1):
             if t['framework'] in current_job and current_job[t['framework']] != t['job_id']:
                 last_job[t['framework']] = [current_job[t['framework']]]
             current_job[t['framework']] = t['job_id']
+            if t['framework'] / num_users == 0:
+                t['acceleration'] = 0.9
+            elif t['framework'] / num_users == 1:
+                t['acceleration'] = 0.1
+            else:
+                print('framework is: {}'.format(t['framework']))
+            print('acceleration is: {}'.format(t['acceleration']))
             serialized = [ t['job_id'], counts[t['job_id']], 0, t['time'], t['framework'] / num_users, 0, 0, t['cpu'], t['ram'], t['disk'], t['acceleration']] + last_job[t['framework']]
             counts[t['job_id']] += 1
             f.write(' '.join(str(x) for x in serialized) + '\n')

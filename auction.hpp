@@ -5,6 +5,7 @@
 #include <vector>
 #include <string>
 
+#include "mesos.hpp"
 #include "shared.hpp"
 
 using namespace std;
@@ -28,7 +29,7 @@ class Auction {
   Auction(const unordered_map<FrameworkID, vector<vector<Bid>>>& _all_bids,
           const unordered_map<SlaveID, Resources>& _resources,
           const Resources& _reservation_price, const double _min_price_increase,
-          const double _price_multiplier);
+          const double _price_multiplier, const Indexer<Slave>& _all_slaves);
 
   void run();
 
@@ -46,6 +47,7 @@ class Auction {
   unordered_map<SlaveID, Resources> resources;
   Resources reservation_price;
 
+  const Indexer<Slave>& all_slaves;
   unordered_map<SlaveID, vector<Bid*>> winning_bids_per_slave;
 
   const double min_price_increase;

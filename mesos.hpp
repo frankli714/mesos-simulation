@@ -57,10 +57,14 @@ struct Task : public Indexable {
   std::unordered_set<size_t> remaining_dependencies;
 };
 
+DECLARE_double(cpu);
+DECLARE_double(mem);
+DECLARE_double(disk);
+
 class Slave : public Indexable {
  public:
-  Slave() : resources({ 10, 10000, 1 }),
-            free_resources({ 10, 10000, 1 }) {}
+  Slave() : resources({ FLAGS_cpu, FLAGS_mem, FLAGS_disk }),
+            free_resources({ FLAGS_cpu, FLAGS_mem, FLAGS_disk }){};
   Resources resources;
   std::unordered_set<size_t> curr_tasks;
   Resources free_resources;

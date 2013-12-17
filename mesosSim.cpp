@@ -22,6 +22,7 @@
 #include "simulation.hpp"
 #include "mesos.hpp"
 
+
 using namespace std;
 
 // i have decided to go for a priority queue based simulation; the caveat is
@@ -96,6 +97,8 @@ class MesosSimulation : public Simulation<MesosSimulation> {
 
   void update_budget(Framework& f, double time);
 
+  void log_utilization();
+
   unordered_map<size_t, Resources> all_free_resources() const;
   void offer_resources(size_t framework_id,
                        unordered_map<size_t, Resources> resources, double now);
@@ -119,6 +122,8 @@ class MesosSimulation : public Simulation<MesosSimulation> {
 
   bool ready_for_auction;
   bool currently_making_offers;
+
+  int gg = 0, bb = 0, bg = 0, gb = 0;
 };
 Resources MesosSimulation::total_resources;
 Resources MesosSimulation::used_resources;
@@ -131,6 +136,9 @@ DEFINE_string(policy, "drf",
 DEFINE_string(trace, "synthetic_workload.txt",
     "Path to trace for trace_workload.");
 DEFINE_string(validation, "validation.log", "Filename of validation logs");
+DEFINE_double(cpu, 0.5, "CPU per slave");
+DEFINE_double(mem, 0.5, "Memory per slave");
+DEFINE_double(disk, 0.5, "Disk per slave");
 
 void rand_workload(int num_frameworks, int num_jobs, int num_tasks_per_job,
                    Indexer<Framework>& allFrameworks, Indexer<Task>& allTasks,
@@ -380,6 +388,21 @@ void MesosSimulation::start_task(
 
     f.task_started(task.id(), now);
 
+    if (slave.special_resource){
+        if (task.special_resource_speedup  < 0.5){
+            gg++;
+        } else{
+            gb++;
+        }
+    } else{
+        if (task.special_resource_speedup < 0.5){
+            bg++;
+        } else{
+            bb++;
+        }
+    }
+
+
     if (DEBUG) {
       cout << "Slave scheduled: id=" << slave.id()
            << " cpu: " << slave.free_resources.cpus
@@ -458,10 +481,7 @@ void OfferEvent::run(MesosSimulation& sim) {
 
   //cout << "Offers made at time " << << endl;
   //Log utilization
-  cout << sim.get_clock() / 1000000 << " " << sim.used_resources.cpus << " "
-       << sim.total_resources.cpus << " " << sim.used_resources.mem << " "
-       << sim.total_resources.mem << " " << sim.used_resources.disk << " "
-       << sim.total_resources.disk << endl;
+  sim.log_utilization();
 /*  size_t idle = 0;
   for(int i = 0; i < sim.num_frameworks; i++) {
     vector<size_t> tmp = sim.allFrameworks[i].eligible_tasks(sim.allTasks, sim.jobs_to_tasks, sim.get_clock());
@@ -469,6 +489,17 @@ void OfferEvent::run(MesosSimulation& sim) {
   }
   cout << idle << " tasks waiting to be scheduled" << endl;
 */
+}
+
+void MesosSimulation::log_utilization() {
+      cout << get_clock() / 1000000 << " " << used_resources.cpus << " "
+      << total_resources.cpus << " " << used_resources.mem << " "
+      << total_resources.mem << " " << used_resources.disk << " "
+      << total_resources.disk << endl;
+      LOG(INFO) << "FASTHUNGRY " << gg;
+      LOG(INFO) << "FASTSTABLE " << gb;
+      LOG(INFO) << "SLOWSTABLE " << bb;
+      LOG(INFO) << "SLOWHUNGRY " << bg;
 }
 
 void OfferEvent::run_round_robin(MesosSimulation& sim) {
@@ -528,9 +559,9 @@ void AuctionEvent::run(MesosSimulation& sim) {
   // - bids
   unordered_map<FrameworkID, vector<vector<Bid>>> all_bids;
   for (const Framework& framework : sim.allFrameworks) {
-    VLOG(1) << "Framework " << framework.id() <<" has..." << endl;
-    VLOG(1) << "   Budget: " << framework.budget;
-    VLOG(1) << " Expenses: " << framework.expenses;
+    LOG(INFO) << "Framework " << framework.id() <<" has..." << endl;
+    LOG(INFO) << "   Budget: " << framework.budget;
+    LOG(INFO) << " Expenses: " << framework.expenses;
     if (framework.budget < 0) continue;
     vector<vector<Bid>>& bids = all_bids[framework.id()];
     vector<size_t> tasks = framework.eligible_tasks(sim.allTasks, sim.allJobs, get_time());
@@ -577,7 +608,7 @@ void AuctionEvent::run(MesosSimulation& sim) {
 
   // Run the auction
   Auction auction(all_bids, free_resources, reservation_price,
-                  min_price_increase, price_multiplier);
+                  min_price_increase, price_multiplier, sim.allSlaves);
   auction.run();
 
   // Get the results
@@ -598,10 +629,7 @@ void AuctionEvent::run(MesosSimulation& sim) {
 
     }
   }
-    cout << sim.get_clock() / 1000000 << " " << sim.used_resources.cpus << " "
-       << sim.total_resources.cpus << " " << sim.used_resources.mem << " "
-       << sim.total_resources.mem << " " << sim.used_resources.disk << " "
-       << sim.total_resources.disk << endl;
+    sim.log_utilization();
 
   // Run auction again in 1 second
   if (sim.ready_for_auction){
@@ -662,6 +690,21 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
   Framework& framework = allFrameworks[f_id];
   Task& task = allTasks[t_id];
 
+  if (slave.special_resource){
+      if (task.special_resource_speedup  < 0.5){
+          sim.gg--;
+      } else{
+          sim.gb--;
+      }
+  } else{
+      if (task.special_resource_speedup < 0.5){
+          sim.bg--;
+      } else{
+          sim.bb--;
+      }
+  }
+
+
   if (DEBUG) {
     cout << "Time is " << sim.get_clock() << " finished_task " << t_id << endl;
   }
@@ -688,7 +731,7 @@ void FinishedTaskEvent::run(MesosSimulation& sim) {
   Job& job = sim.allJobs.get(j_id);
   job.complete_task();
   if (job.finished()) {
-    job.end_time = this->get_time() - job.start_time;
+    job.end_time = this->get_time();
 
     // Update dependents of job
     auto its = sim.job_dependents.equal_range(j_id);
@@ -737,13 +780,10 @@ int main(int argc, char* argv[]) {
   sim.output.close();
 
   //METRICS: Completion time
-  //double sum = 0;
-/*  cout << "#JOB COMPLETION TIMES" << endl;
+  cerr << "#JOB COMPLETION TIMES" << endl;
   for (int i = 0; i < sim.allJobs.size(); ++i) {
-    //cout << kv.first << endl;
-    cout << sim.jobs_to_num_tasks[kv.first] << " " << kv.second.second << endl;
-    //sum += it->second.second;
-  }*/
+    cerr << i << " " << sim.allJobs[i].end_time << endl;
+  }
   //if(DEBUG) cout << "Average job completition time is " <<
   //float(sum)/float(jobs_to_tasks.size()) << endl;
 

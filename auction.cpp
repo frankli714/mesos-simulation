@@ -10,9 +10,9 @@
 
 #include <glog/logging.h>
 
+#include "mesos.hpp"
 #include "auction.hpp"
 #include "shared.hpp"
-#define RATE = 0.01
 
 using namespace std;
 
@@ -44,12 +44,14 @@ Auction::Auction(
     const unordered_map<FrameworkID, vector<vector<Bid> > >& _all_bids,
     const unordered_map<SlaveID, Resources>& _resources,
     const Resources& _reservation_price, const double _min_price_increase,
-    const double _price_multiplier)
+    const double _price_multiplier,
+    const Indexer<Slave>& _all_slaves)
     : all_bids(_all_bids),
       resources(_resources),
       reservation_price(_reservation_price),
       min_price_increase(_min_price_increase),
-      price_multiplier(_price_multiplier) {}
+      price_multiplier(_price_multiplier),
+      all_slaves(_all_slaves) {}
 
 bool Auction::displace(const Bid& new_bid, vector<Bid*>& displaced_bids,
                        double& total_cost) {
@@ -58,9 +60,9 @@ bool Auction::displace(const Bid& new_bid, vector<Bid*>& displaced_bids,
 
   // Compute how much more resources we need to accomodate the new bid.
   SlaveID slave_id = new_bid.slave_id;
-  if (!(new_bid.requested_resources < resources[slave_id])) {
+  if (!(new_bid.requested_resources < all_slaves[slave_id].free_resources)) {
     VLOG(2) << "    Slave too small: " << new_bid << " will never fit in "
-            << resources[slave_id];
+            << all_slaves[slave_id].free_resources;
     return false;
   }
 
@@ -105,10 +107,6 @@ bool Auction::displace(const Bid& new_bid, vector<Bid*>& displaced_bids,
       return true;
     }
   }
-
-  // Total resources were not enough despite the check above.
-  LOG(FATAL) << "    Failure: " << freed_resources << " < " <<
-    needed_resources;
 
   return false;
 }
