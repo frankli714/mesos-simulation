@@ -599,14 +599,42 @@ send a \emph{resource offer} message to all registered frameworks to invite them
 to participate in an upcoming auction. Each framework then submits a package of
 bids, which we can consider a function of the form
 \[ \mathcal{B}: \mathbf{T}^n \rightarrow \mathbf{R}. \]
-where there are $n$ slaves, $T$ is a task (containing an amount of desired
-resources on a single slave) and $\mathbf{R}$ is a willingness to pay for the
+where there are $n$ slaves, $\mathbf{T}$ is a task (containing an amount of desired
+resources on a single slave) and $\mathbf{R}$ is the willingness to pay for the
 list of tasks $\mathbf{T}^n$.
 
 A naive representation of this function would use an exponential amount of
 space, given that each of the $n$ values in $\mathbf{T}^n$ can vary
-independently. While we can consider several methods for restricting the set of
-possible 
+independently. While we can consider several methods greatly varying in
+complexity for encoding this function more compactly, we use the following
+two-level representation:
+\begin{itemize}
+  \item A list of \emph{task packages}, with the assumption that the willingness
+    to pay for any subset of the list is simply the sum of the willingness to
+    pay for each element in the subset
+  \item A list of tasks in each task package, with a specific slave and a
+    willingness to pay for each task. The auction assumes that the framework
+    desires only one of the tasks and values all of them equally.
+\end{itemize}
+While this obviously cannot represent all possible $\mathcal{B}$, it still
+allows enough flexibility to, e.g., pay more to have a task run on a faster
+machine than a slower one.
+
+\subsection{Ascending-bid clock auction}
+Once the master has collected a set of bids, it uses an ascending-bid clock
+auction to determine which of the bids to fulfill, and how much it should charge
+for each of the tasks which win the auction. The auction consists of a number of
+rounds which continue until no changes occur in the final round. To avoid the
+need for communication between the master and the frameworks after each round,
+we use a \emph{proxy auction} where each framework makes a single bid for all
+rounds and agents running with the master represent each of them within the
+master.
+
+Specifically, the auction tries to fit bids into the available resources in the
+cluster as to maximize the amount of revenue from the auction. With each task
+package, we associate a \emph{current price} in addition to the willingness to
+pay; then the difference between the latter and the former is  the The agent
+representing a framework's bid computes 
 
 \section{Experimental Evaluation}
 \label{sec:eval}
