@@ -630,11 +630,30 @@ we use a \emph{proxy auction} where each framework makes a single bid for all
 rounds and agents running with the master represent each of them within the
 master.
 
-Specifically, the auction tries to fit bids into the available resources in the
-cluster as to maximize the amount of revenue from the auction. With each task
-package, we associate a \emph{current price} in addition to the willingness to
-pay; then the difference between the latter and the former is  the The agent
-representing a framework's bid computes 
+With each set of tasks, we associate a \emph{current price} in addition to the
+willingness to pay; then the difference between the latter and the former is the
+profit incurred by the framework for that set of tasks. The agent representing a
+framework's bid initially sets the current price to equal a \emph{reserve price}
+based on the amount of resources within the bid.
+
+For the master, the goal of the auction is to pick a set of tasks to run which
+is feasible (i.e., does not use resource beyond what is currently available) and
+which maximizes the revenue (the sum of the \emph{current price} for each of the
+tasks).
+
+The auction operates by maintaining a set of winners, and asking each of
+the frameworks' agents in turn to suggest a change to the set such that it
+remains feasible and increases the master's revenue. The agent then takes an
+action to maximize its represented framework's profit by putting as many tasks
+as possible into the winning set. If the agent needs to evict some current
+winners to make room for tasks that it wants to run, then it must raise the
+current price of the tasks by an amount which exceeds the current price of the
+evicted tasks; sometimes that may cause the current price to exceed the task's
+willingness to pay, which indicates that there is too much competition driving
+up the price to profitably run the task on the cluster at this time.
+
+\subsection{Bidding policy}
+Given a set of tasks it wishes to run, the framework must 
 
 \section{Experimental Evaluation}
 \label{sec:eval}
