@@ -80,7 +80,7 @@
 \alignauthor Paul Christiano, Frank Li, Richard Shin \\
 % 2nd. author
 % 3rd. author
-\email{\{paulchristiano, frankli, ricshin\}@cs.berkeley.edu}
+\email{\{paulfchristiano, frankli, ricshin\}@cs.berkeley.edu}
 %\and  % use '\and' if you need 'another row' of author names
 %% 4th. author
 %\alignauthor Lawrence P. Leipuner\\
@@ -194,6 +194,8 @@ In section \ref{sec:future}, we elaborate on directions for further
 investigation.
 
 In section \ref{sec:conclusion}, we making closing remarks.
+
+
 
 \section{Overview}
 \label{sec:overview}
@@ -603,9 +605,74 @@ Figure JOB-COMPLETION depicts the time progression of job completions, where a j
 
 Hence, in the case of inhomogeneous performing resources, the market-based mechanism can allow frameworks to better express their preferences than DRF, resulting in better performance for the market-based mechanism. DRF only allows a framework to specifically target special resource slaves when the framework is offered, whereas the market-based mechanism allows frameworks who benefit most from a special resource slave to outbid others. By better scheduling jobs on machines that best complete them, we see the overall performance improvements of the market-based mechanism.
 
+\section{Related Work}
+\subsection{Grid computing}
+Job schedulers like TORQUE \cite{torque}, Condor \cite{condor}, and LSF
+\cite{lsf} have long been used for solving the problem of resource allocation
+within a high-performance-computing (HPC) or grid-computing environment.
+For the most part, they do not use a two-level scheduling model like we do but
+instead operate as a queue for predefined jobs which are run as resources become
+available. Machines and job requirements also tend to show more homogeniety
+within such environments (for example, the ratio between CPU, memory, and disk),
+so sthe amount of optimization possible with pricing is lower.
 
-\section{Future Works}
+\subsection{Cloud and datacenter computing}
+Our work depends heavily on Mesos~\cite{mesos}, as we use its model of
+resources, tasks, and frameworks as the basis for our own. We also use Mesos as
+a baseline for purposes of comparison, as we have already extensively discussed.
+
+Jockey~\cite{jockey} attempts to solve the specific problem of adjusting
+resource allocation in the datacenter environment to ensure important jobs
+finish within deadlines. They do not directly modify the scheduler for this but
+instead adjust the priority of each job as needed within an existing system.
+With our work, we attempt to create a general-purpose system which can solve not
+only the problem of deadlines, but also allow expression of many different kinds
+of demands and have them all interact nicely with each other without needing
+specialized logic to keep track of each one explicitly.
+
+\subsection{Resource allocation}
+Dominant resource fairness~\cite{drf} 
+
+\subsection{Economics/pricing in computer systems}
+Lottery scheduling
+
+\subsection{Economics/pricing for resource allocation}
+Many previous researchers have proposed systems which use ideas from economics
+to assign resources in computer systems.  Analogous to our datacenter
+implementation, \cite{stoica94} uses prices, budgets, and auctions for
+scheduling within a single machine. It ensures some level of fairness and
+allows low-income but mostly-idle users to occasionally spend more money beyond
+their income for urgent jobs by drawing upon their account balance. However,
+resource demands are much more homogeneous in this environment than within a
+datacenter, so the usefulness of prices as a vehicle for expressing prices are
+more limited. Spawn \cite{spawn} uses auctions to rent time-slices of idle
+workstations; rather than using prices as a priority-indicating mechanism
+automatically set based on application requirements, this work places more
+emphasis on using it for reimbursement where users manually allocate budgets to
+jobs. Tycoon \cite{tycoon} also uses auctions to divide up the cluster's
+resources among competing users, except the auctions are used for CPU scheduling
+within each individual machine rather than for setting bounds on allowed
+resource usage of each job, and has no provision for the presence of
+multiple contentious resources.
+
+More generally, fair division is the problem in economics of dividing a set of
+resources equitably among a set of people. Our problem differs somewhat from
+fair division in that we don't seek to allocate every bit of the cluster to the
+set of users. We assume that a user might be happy to have received nothing if
+their value of gaining resources was too low compared to the others, since the
+user keeps some amont of money unspent as a a result.
+
+One of the economic fair division solutions is CEEI~\cite{moulin2004fair}, or
+competitive equilibrium from equal incomes. This mechanism emulates a market
+where participants initially receive an equal amount of resources and trade some
+of them until each has the desired amount of resources. CEEI's use of a market
+differs significantly from ours in that we do not use it only as a vehicle for
+achieving a fair allocation, but also for frameworks to express their
+preferences in a fine-grianed way using prices and willingness to pay.
+
+\section{Discussion and Future Work}
 \label{sec:future}
+
 
 \section{Conclusion}
 \label{sec:conclusion}
@@ -619,7 +686,7 @@ We thank Professors Anthony Joseph and John Kubiatowicz for guidance and numerou
 % initial runs of your .tex file to
 % produce the bibliography for the citations in your paper.
 \bibliographystyle{abbrv}
-\bibliography{sigproc}  % sigproc.bib is the name of the Bibliography in this case
+\bibliography{paper}  % sigproc.bib is the name of the Bibliography in this case
 % You must have a proper ".bib" file
 %  and remember to run:
 % latex bibtex latex latex
