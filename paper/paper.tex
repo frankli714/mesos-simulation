@@ -1043,7 +1043,7 @@ Hence, in the case of inhomogeneous performing resources, the market-based mecha
 There are a number of related works in the same or similar domains.
 
 \subsection{Grid computing}
-Job schedulers like TORQUE \cite{torque} or Condor \cite{condor} have long been used for solving the problem of resource allocation
+Job schedulers like TORQUE \cite{torque}, Condor \cite{condor}, or LFS \cite{LFS} have long been used for solving the problem of resource allocation
 within a high-performance-computing (HPC) or grid-computing environment.
 For the most part, they do not use a two-level scheduling model like we do but
 instead operate as a queue for predefined jobs which are run as resources become
@@ -1075,7 +1075,7 @@ Section \ref{sec:theory} contains a more theoretical discussion of DRF and
 its benefits compared to a market-based mechanism.
 
 \subsection{Economics/pricing in computer systems}
-Lottery scheduling
+Lottery scheduling \cite{lottery} is an example of economic principles applied to computer systems. In lottery scheduling, processes or users are assigned a number of lottery tickets, and the scheduler draws a random lottery ticket. The ticket holder is next scheduled or awarded resources. This probabilistic scheduling algorithm solves starvation as each user has a non-zero probability of being selected in each lottery round. Lottery tickets can also be distributed non-uniformly to compensate certain users or boost their chance of scheduling.
 
 \subsection{Economics/pricing for resource allocation}
 Many previous researchers have proposed systems which use ideas from economics
