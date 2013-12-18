@@ -201,7 +201,7 @@ We incorporate these ideas into the Mesos cluster manager, along with microecono
 ``agents'' which allow traditional Mesos clients to interact seamlessly with our
 modified implementation. We show through simulations that our market-based mechanism 
 achieves comparable performance with the existing implementation of Mesos.
-We then give an example of modifying the bidding behavior of frameworks
+We then give an example of modifying the bidding behavior of users.
 in order to express varying preferences for particular machines in the cluster,
 and show that this modification is able to improve the performance of Mesos.
 
@@ -329,7 +329,7 @@ been considered are:
     difficult given the complexity and scale of the cluster scheduling problem.
 \end{enumerate}
 
-\subsection{Motivating examples}
+\subsection{Motivating examples}\label{examples}
 
 Consider the following typical situations within a cluster:
 \begin{enumerate}
@@ -362,7 +362,7 @@ of the underlying systems more starkly, and to require extensive tuning
 in order to achieve good performance.
 We seek a more general framework for addressing these difficulties.
 
-Similarly, we might cope with the need for pre-emption by using various
+Similarly, we might cope with the need for preemption-  by using various
 heuristics to minimize the extent of overhead associated with evicting a running
 task.
 These heuristics may work well in practice, but are also likely to require
@@ -580,6 +580,8 @@ the cluster which manages a large number of \emph{slaves} serving as a pool of
 compute resources. The users of the system are represented by \emph{frameworks},
 which communicate with the master to request resources on slaves, and use the
 obtained resources to run \emph{tasks} on the slaves.
+(We will use the expression ``frameworks'' and ``users'' interchangeably,
+depending on the context.)
 
 These participants generally run as daemons on the cluster.  Typically, a single
 cluster would consist of up to tens of thousands of machines, each of which
@@ -708,11 +710,9 @@ For example, if a task will take less time when run on a machine
 which already has relevant data loaded into memory,
 a framework can increase its willingness to pay for resources on that machine
 by an amount depending on the anticipated speedup.
-%XXX mention why we don't care about any properties other than those that we mention
 \vspace{-5mm}
 \paragraph{Defensive bidding} One negative consequence of using a closed economy,
 in which the frameworks bid using currency which is entirely internal to the cluster,
-%XXX mention this distinction elsewhere, and the fact that we can do either
 is the possibility of \emph{hoarding}, in which one framework
 declines to use any resources during a certain period so that it can amass
 a much larger budget than any other resources.
@@ -728,12 +728,39 @@ during any window of length $T$, $A$ spends roughly $p$ times the total amount
 spent by all frameworks, and at every point in time $A$'s reserves are roughly equal to $p$
 times the total reserves of all frameworks (where $T$ is an upper bound on how frequently auctions are conducted,
 either the maximum length of a task or the period of time after which the resources used by a task
-will be reauctioned and potentially revoked).
+will be re-auctioned and potentially revoked).
 In fact the second invariant follows from the first, which can be approximately attained
 by simply scaling all bids during an interval of time $T$ to the appropriate level.
 
 \section{Theoretical analysis}
 \label{sec:theory}
+
+We are interested in understanding the suitability of auctions
+as a method for allocating resources.
+To this end, it is prudent to compare the theoretical properties of auctions
+with the theoretical properties of alternatives, particularly various fair-share
+schedulers which have been proposed.
+
+The theoretical properties we are most interested are those concerning the welfare
+produced by the system.
+This includes Pareto efficiency, envy-freeness, and the ``sharing incentive''
+(a system offers a sharing incentive if each user prefers the system
+to simply taking their share of the cluster and going home),
+but also the manipulability of our systems
+(since manipulation may interfere with the reliability of the information
+provided by the users, potentially rendering it useless).
+
+One strong theme throughout this analysis will be the definition of ``local'' versions
+of typical guarantees.
+These appear to be necessary if we want to analyze the behavior of any of our systems
+in a realistic environment, and in particualr in dynamic contexts:
+as we show in the next section, it is typically impossible to achieve
+almost any desirable properties in the dynamic setting.
+Instead, we will talk about obtaining properties at each point in time,
+leaving open the possibility of interactions between different points in time
+violating these guarantees.
+We stress that this relaxation is necessary not only for our system,
+but for existing approaches and (in many cases) provably for all systems.
 
 \subsection{Drawbacks of non-economic scheduling}\label{drawbacks}
 Most scheduling policies used in practice do not use any economic information: clients request resources, and schedulers allocate those resources. Clients may be assigned priorities and/or budgets which are used by the scheduler to determine how many resources to assign to that client, but requests themselves are an all-or-nothing affair.
@@ -770,14 +797,13 @@ But now consider the alternative allocation which exchanges these periods, i.e. 
 Under realistic conditions, the implementation of DRF in Mesos is not strategy-proof, Pareto efficient, envy-free, or compatible with the sharing incentive. 
 \end{theorem}
 \vspace{-5mm}
-DRF satisfies a weaker form of strategy-proofness which we call ``local strategy-proofness,'' 
-such that a user is incentivized to honestly state their demands given their beliefs about the effect of those demands on the scheduler's future behavior. 
+DRF satisfies a weaker form of strategy-proofness which we call ``local strategy-proofness:'' 
+a user is incentivized to honestly state their demands given their beliefs about the effect of those demands on the scheduler's future behavior. 
 This differs from the ordinary notion in that a user may need to reason strategically about future rounds of allocation in order to determine
 their demand, rather than honestly reporting their real demand.
-%XXX replace user by framework
-%XXX fold this into the clearer general discussion of loca guarantees
 
-\textbf{Proof} For variety, we consider the case of inhomogeneous resources. Again, the proof is identical in any of the given cases. For each property we construct a special situation in which DRF fails to achieve that property.
+\textbf{Proof} For variety, we will prove this theorem in the case of inhomogeneous resources. 
+Again, the proof is identical in any of the given cases. For each property we construct a special situation in which DRF fails to achieve that property.
 \vspace{-5mm}
 \begin{itemize}
 \itemsep0em
@@ -802,7 +828,6 @@ incentive and Pareto efficiency are actually incompatible in general.
 This motivates us to introduce weaker notions in the next section.
 \vspace{-5mm}
 \begin{theorem}\label{no-efficiency}
-%XXX change the appearance of "theorem 3" below to reference this one
 The sharing incentive and Pareto efficiency are incompatible under realistic conditions.
 \end{theorem}
 \vspace{-5mm}
@@ -822,6 +847,20 @@ Since the scheduler must decide which user to give more resources in phase 1, it
 \subsection{Analysis of our policy}
 In this section, we show that our system possesses weaker versions of the theoretical guarantees of the theoretical properties that have been ascribed to existing schedulers. In light of the arguments in the preceding section, we hope to illustrate that the two systems are on comparable theoretical footings.
 
+Rather than considering our policy directly, we will work with an idealized variant.
+Our policy performs an \emph{approximate} optimization in order to remain scalable (indeed, it is easy to check that the general allocation problem
+is NP-hard);
+in the idealized variant, we instead imagine performing each auction by selecting the \emph{exact} optimum of the scheduling policy.
+Because each individual scheduling problem tends to concern a small fraction of the cluster's resources,
+this is not a stretch from reality (and we can 
+
+Naturally, it is much easier to prove guarantees for the exact version: for example, it is NP-hard to be exactly Pareto efficient in realistic
+situations
+even if we know the preferences of every user.
+This is not merely a technical problem; it means that there can be no Pareto efficient computationally tractable schedulers in general.
+So the Pareto efficiency of the exact scheme which we are approximating is the best that we could hope for in general,
+and to the extent that Pareto efficiency is a useful theoretical property this is the version we should establish.
+
 We define a user's fair share of the cluster to be a proportional share of each resource, with the proportion determined by the ratio between the total amount paid by that user, and the amount paid by all users over the cluster. 
 \vspace{-5mm}
 \begin{theorem}[Sharing incentive]
@@ -839,11 +878,14 @@ Summing over all rounds of the auction, A values the total resources they receiv
 and user A values the total resources others receive at at most the amount that others pay for them. The desired result follows immediately. \qed
 \end{pproof}
 
+Using the same idea, we can establish that if the size of a cluster is increased by a multiple of $(1 + \epsilon)$ and we add a set of (potentially malicious) users whose total
+budget is bounded by $\epsilon$, the resulting allocation is at least as good for every existing user.
+This guarantees that the worst that a malicious or buggy user can do is ``walk away with their share of the cluster.''
+
 We need to change the notion of envy-freeness slightly to be appropriate for our setting: 
 because we allow users to bid on resources, it may be that one user consistently pays more than another and therefore receives more resources. 
 So we merely ask that no user envy the allocation of anyone who paid no more than they did.
 
-%XXX link this into the general discussion
 As with the envy-free analysis of DRF, we need to assume that either there are no complementarities between resources, or that the user's demand for a resource takes into account their expectations about future allocations (e.g. if resources R and Q are only valuable together, we either assume that the scheduler packages them together into a single resource or that the frameworks are able to evaluate the value of r based on the probability that they will be able to receive Q).
 \vspace{-5mm}
 \begin{theorem}[Local envy-freeness]
@@ -866,8 +908,12 @@ We note in passing that similar assumptions are required to prove that DRF is en
 even in a simple rather than realistic environment.
 \qed
 \end{pproof}
-%XXX insert discussion of strategy-proofness of DRF, which mentions (1) the fact that you need to ignore complexities of items / trust users to incorporate them into their bids, (2) the fact that you need to ignore the consequences of your behavior for other participants
 \vspace{-8mm}
+In the case of strategy-proofness we again weaken our target conditions
+to a local condition: we allow users to strategically look-ahead to future
+rounds in order to determine how much they are willing to pay for a particular resource,
+but require that within a single round they must honestly state those preferences.
+We observe that in the dynamic setting DRF is only strategy-proof in the same ``local'' sense
 \begin{theorem}[Local strategy-proofness] 
 Assuming that users are indifferent to changes in each others' budgets,
 and that users' willingness to pay 
@@ -890,10 +936,8 @@ and since the auctioneer continues to make favorable modifications until no more
 This contradicts the assumption that $(R_1, p_1)$ was the result of running the auction with bid $B_1$. \qed 
 \end{pproof}
 \vspace{-5mm}
-We must also weaken the notion of Pareto efficiency in order for it to be achievable (see Theorem 3):
+We must also weaken the notion of Pareto efficiency in order for it to be achievable (see Theorem~\ref{no-efficiency})
 \vspace{-5mm}
-%XXX make notes about approximations, say we are analyzing the intractable optimization and that statements hold with appropriate caveats, e.g. you aren't Pareto efficient if you can't do the optimization exactly, but you are as Pareto efficient as you can realistically be. Since optimization is computationally hard, the only way we can avoid this caveat is by ignoring it.]
-%XXX make notes about the notion of ``local'' guarantees
 \begin{theorem}[Local Pareto efficiency.]
 If users bid honestly, 
 there is no way to change the tasks which are scheduled at a single time $T$ in a way which makes every user better off.
@@ -1077,7 +1121,7 @@ In our evaluation, we showed through simulation the benefits of our protocol in 
 
 This paper presented an initial investigation into the possibility of leveraging prices and a market-based mechanism for resource scheduling. We describe a protocol for use in the Mesos cluster scheduler with beneficial theoretical properties. Simulation evaluation shows that our market-based mechanism can perform reasonably in a backwards-compatible mode, where no economic information is provided. When economic data exists, our approach can provide substantial performance benefits.
 
-\section{Acknowledgement}
+\section{Acknowledgment}
 
 We thank Professors Anthony Joseph and John Kubiatowicz for guidance and numerous suggestions throughout the course of this project. Also, we thank Charles Reiss for providing helpful tips on how best to use the Google cluster traces. Finally, we thank Ali Ghodsi for providing meaningful discussion into the theory behind our market-based mechanism.
 
