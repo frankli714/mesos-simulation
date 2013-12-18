@@ -141,7 +141,24 @@
 
 \maketitle
 \begin{abstract}
-Current cluster managers arbitrate complex and possibly conflicting user requirements through a fairness criterion such as dominant resource fairness. However, in realistic settings, these approaches fail to be both efficient and non-manipulable. In this paper, we propose using prices as a method of expressing user constraints, and describe a market-based mechanism for allocating resources in a cluster. We demonstrate that our approach achieves desirable theoretical properties, such as envy-freeness and compatibility with sharing incentives. We incorporate our mechanism into the design of the Mesos cluster scheduler, and show through simulations that our modifications result in comparable or better performance characteristics when compared with the existing Mesos framework. In particular, our scheme can match Mesos's dominant resource fairness's performance when even no economic information is provided. When economic information is provided, our mechanism provides performance improvements.
+Existing cluster managers typically allocate resources
+based on a fairness criterion such as dominant resource fairness. 
+However, this approach makes it difficult to accomodate complex requirements
+without substantially increasing the complexity of the scheduler itself.
+Standard approaches to this challenge compromise the efficiency
+and fairness guarantees that make these simple scheduling policies attractive.
+
+In this paper, we propose using prices as a simple and modular
+method of expressing constraints and objectives,
+and describe a microeconomic mechanism for allocating resources
+in a cluster
+We demonstrate that, in contrast with existing techniques,
+our approach maintains its theoretical guarantees even in the presence
+of complex scheduling constraints which are unknown to the scheduler.
+We incorporate our mechanism into the design of the Mesos cluster scheduler, 
+and show through simulations that our modifications result in comparable performance characteristics
+to DRF in simple situations, while achieving improved performance
+in a setting with inhomogeneous resources.
 \end{abstract}
 
 % A category with the (minimum) three required fields
@@ -688,8 +705,7 @@ by simply scaling all bids during an interval of time $T$ to the appropriate lev
 \section{Theoretical analysis}
 \label{sec:theory}
 
-Theoretical analysis
-Drawbacks of non-economic scheduling
+\subsection{Drawbacks of non-economic scheduling}\label{drawbacks}
 Most scheduling policies used in practice do not use any economic information: clients request resources, and schedulers allocate those resources. Clients may be assigned priorities and/or budgets which are used by the scheduler to determine how many resources to assign to that client, but requests themselves are an all-or-nothing affair.
 
 These policies can work well when the scheduler is aware of all of the relevant constraints faced by clients. But when constraints are invisible to the scheduler, as is the case in Mesos, this paradigm can become problematic. Approaches like lottery scheduling (though not in fact used in Mesos) can partly get around these problems by ensuring that each client receives a proportional share of every resource type, even if the differences between resources are not known to the scheduler. But these techniques cannot easily ensure that a resource is given to the framework that needs it most.
@@ -743,7 +759,7 @@ their probability of being offered the resource X when it first becomes free.
 In the case of inhomogeneous resources, suppose that two users have streams of tasks, some of which run faster on resources of type A and some of which run faster on resources of type B. 
 Then no demand-based scheduler can ensure that tasks are always placed on the resources on which they run fastest.
 \item \textbf{Envy-freeness and compatibility with sharing incentive:} Suppose that one user consumes $\frac 13$ of the resources in the cluster and another consumes $\frac 12$ of the resources, 
-but a particular $frac 1{10}$ of the resources in the cluster are $10$ times more valuable (to every user) than they appear. 
+but a particular $\frac 1{10}$ of the resources in the cluster are $10$ times more valuable (to every user) than they appear. 
 This could be based on hardware characteristics to which the scheduler is oblivious. 
 The user who consumes $\frac 13$ of the resources receives all resource offers first, and so claims all of the especially valuable resources. 
 But this means that this user receives significantly more total value than the other user, violating both envy-freeness and the sharing incentive. 
@@ -803,7 +819,18 @@ No user who bids honestly would prefer the allocation of another user who paid n
 \begin{pproof}
 We will show by induction that for any number of rounds, user A would prefer to have received user A's allocation at user A's price than user B's allocation at user B's price. Consider a particular round, after which user A receives some resources $R_A$ at a price $p_A$ and user B receives resources $R_B$ at a price $p_B$.
 
-By the definition of our auction, the price $p_B$ exceeds user A's willingness to pay for resources $R_B$ (or else user A's proxy would have continued bidding and the auction would not have concluded), while the price $p_A$ is less than user A's willingness to pay for resources $R_A$ (or else user A's proxy would have stopped bidding earlier). In particular, user A prefers their package to user B's package. Since at the start of the round user A preferred their allocation at their price to user B's allocation at user B's price, this property also holds at the end of the round. In this step we rely on our assumption that user A's valuations for their own holdings do not change after the auction is announced (otherwise it may be possible for user A to become envious in between rounds as more information is revealed, rather than during a round of the auction). We note in passing that similar assumptions are required to prove that DRF is envy-free in the dynamic setting. []
+By the definition of our auction, the price $p_B$ exceeds user A's willingness to pay for resources $R_B$ 
+(or else user A's proxy would have continued bidding and the auction would not have concluded), 
+while the price $p_A$ is less than user A's willingness to pay for resources $R_A$ 
+(or else user A's proxy would have stopped bidding earlier). 
+In particular, user A prefers their package to user B's package. 
+Since at the start of the round user A preferred their allocation at their price to user B's allocation at user B's price, 
+this property also holds at the end of the round. 
+In this step we rely on our assumption that user A's valuations for their own holdings do not change after the auction is announced 
+(otherwise it may be possible for user A to become envious in between rounds as more information is revealed, rather than during a round of the auction). 
+We note in passing that similar assumptions are required to prove that DRF is envy-free in the dynamic setting,
+even in a simple rather than realistic enviornment.
+\qed
 \end{pproof}
 
 %XXX insert discussion of strategy-proofness of DRF, which mentions (1) the fact that you need to ignore complexities of items / trust users to incorporate them into their bids, (2) the fact that you need to ignore the consequences of your behavior for other participants
@@ -845,23 +872,25 @@ At each individual time $T$, the allocation selected is chosen precisely to maxi
 Consequently, assuming that bidders honestly report their welfare, the allocation which is selected maximizes welfare.
 \end{pproof}
 
-\begin{table*}[t!]
-\begin{center}
+\begin{table}[t!]
+%\begin{center}
     \begin{tabular}{| l | l | l | l | l | l |}
     \hline
     Desired & \small DRF & \small DRF & \small Market-based  \\
     Properties & \small(simple) & \small (realistic) & \small Mechanism \\
     \hline
-    \small Envy-Free & \cmark &  & \cmark \\
+    \small Envy-Free & \cmark &  & Locally \\
     \small Pareto-Efficient & \cmark & Locally & Locally  \\
     \small Strategy-proof & \cmark & Locally  & Locally \\
     \small Sharing incentive & \cmark &  & \cmark\\
     \hline
     \end{tabular}
-\end{center}
-  \caption{A simple table}
+%\end{center}
+  \caption{Properties of DRF in a simple environment
+ compared with properties of DRF and our economic mechanism
+ in a more realistic environment (see section~\ref{drawbacks}).}
   \label{table:props}
-\end{table*}
+\end{table}
 
 
 \section{Experimental Evaluation}
