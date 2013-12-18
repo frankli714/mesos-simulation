@@ -831,17 +831,11 @@ In this section, we show that our system possesses weaker versions of the theore
 
 Rather than considering our policy directly, we will work with an idealized variant.
 Our policy performs an \emph{approximate} optimization in order to remain scalable (indeed, it is easy to check that the general allocation problem
-is NP-hard);
+is NP-hard, and consequently that there is \emph{no} non-trivial policy that is Pareto efficient);
 in the idealized variant, we instead imagine performing each auction by selecting the \emph{exact} optimum of the scheduling policy.
-Because each individual scheduling problem tends to concern a small fraction of the cluster's resources,
-this is not a stretch from reality (and we can 
-
-Naturally, it is much easier to prove guarantees for the exact version: for example, it is NP-hard to be exactly Pareto efficient in realistic
-situations
-even if we know the preferences of every user.
-This is not merely a technical problem; it means that there can be no Pareto efficient computationally tractable schedulers in general.
-So the Pareto efficiency of the exact scheme which we are approximating is the best that we could hope for in general,
-and to the extent that Pareto efficiency is a useful theoretical property this is the version we should establish.
+Naturally, it is much easier to prove guarantees for the exact version: when the scheduling problems are small or are broken up into small pieces,
+this is not a significant distortion. Moreover, we can never hope for anything beyond this kind of approximate
+Pareto efficiency for computational reasons, so this seems to be the theoretical property of most interest.
 
 We define a user's fair share of the cluster to be a proportional share of each resource, with the proportion determined by the ratio between the total amount paid by that user, and the amount paid by all users over the cluster. 
 \vspace{-5mm}
@@ -891,7 +885,7 @@ We note in passing that similar assumptions are required to prove that DRF is en
 even in a simple rather than realistic environment.
 \qed
 \end{pproof}
-\vspace{-8mm}
+\vspace{-5mm}
 In the case of strategy-proofness we again weaken our target conditions
 to a local condition: we allow users to strategically look-ahead to future
 rounds in order to determine how much they are willing to pay for a particular resource,
