@@ -178,7 +178,7 @@ pooling of computational resources, but must contend with the problem of
 allocating these resources to users with competitive and potentially
 incompatible demands. Such conflicts are typically arbitrated by some \emph{fairness}
 criterion, such as dominant resource fairness (DRF) \cite{drf}, which benefit from their
-simplicity, efficiency, and non-manipulability. Unfortunately, when applied in
+simplicity, efficiency, and non manipulability. Unfortunately, when applied in
 realistic settings --- when dealing with inhomogeneous resources, time-varying
 demands or deadlines, requirements for data locality, etc.---typical implementations
 of these systems cease to be either
@@ -293,7 +293,6 @@ idle resources, if only perform proof-of-work in exchange for small amounts of
 money).
 Our economic mechanisms are designed to partially remedy these problems.
 
-\subsection{Microeconomic methods}
 In this paper we confront the challenge of modifying Mesos to provide more
 robust efficiency guarantees, without compromising its agnosticism regarding the
 nature of different frameworks' desiderata. We propose \emph{price signals} as a
@@ -301,33 +300,6 @@ mechanism for accomplishing this; instead of accepting or rejecting a resource
 offer, a framework can express its preferences by assigning a \emph{willingness
 to pay} for that resource, and Mesos can give the resources to whichever
 frameworks are most willing to pay.
-
-We stress the distinction between this use of price signals and the more typical
-motivation. We are most interested in price signals as an \emph{abstraction} which
-programs can use to express their constraints, rather than as a mechanism to
-extract revenue for the cluster operator or to arbitrate between competing
-external interests. To consider a simple case, suppose there are two programs
-that are contending for a shared resource $R$. Each could either make use of $R$ or
-some alternative resource $R'$ (for example, a different machine in the cluster at
-a different time). Our proposal is to have each program articulate the value of
-resource $R$ (compared to the benchmark of not receiving resource $R$, and then
-contending for resource $R'$ at a later date). The primary alternatives that have
-been considered are:
-\vspace{-4mm}
-\begin{enumerate}
-\itemsep0em
-  \item Ignore the relative value of resource $R$ and $R'$, and make allocation
-    decisions entirely on the basis of fairness considerations (for example by
-    ensuring that each framework has an equal number of every resource). This is
-    the approach taken by Mesos, although it in fact achieves better behavior
-    precisely by \emph{violating} the strategy-proofness of its underlying allocation
-    policy, and providing incentives to frameworks to strategically decline a
-    resource in order to receive a better allocation in the future.
-  \item Understand the entire optimization problem faced by each problem, and
-    make explicit judgements of the relative value of $R$ and $R'$ within the
-    scheduler. This violates the spirit of Mesos, and in general appears to be
-    difficult given the complexity and scale of the cluster scheduling problem.
-\end{enumerate}
 
 \subsection{Motivating examples}\label{examples}
 
@@ -955,8 +927,8 @@ Consequently, assuming that bidders honestly report their welfare, the allocatio
     Desired & \small DRF & \small DRF & \small Market-based  \\
     Properties & \small(simple) & \small (realistic) & \small Mechanism \\
     \hline
-    \small Envy-Free & \cmark &  & Locally \\
-    \small Pareto-Efficient & \cmark & Locally & Locally  \\
+    \small Envy-Free & \cmark &  & Locally\footnote{No framework envies a framework that pays less.} \\
+    \small Pareto-Efficient & \cmark & Locally\footnote{With caveats arising from computational hardness of packing problems.} & Locally\footnote{With caveats arising from computational hardness of packing problems}  \\
     \small Strategy-proof & \cmark & Locally  & Locally \\
     \small Sharing incentive & \cmark &  & \cmark\\
     \hline
@@ -1120,7 +1092,9 @@ In our evaluation, we showed through simulation the benefits of our protocol in 
 \section{Conclusion}
 \label{sec:conclusion}
 
-This paper presented an initial investigation into the possibility of leveraging prices and a market-based mechanism for resource scheduling. We describe a protocol for use in the Mesos cluster scheduler with beneficial theoretical properties. Simulation evaluation shows that our market-based mechanism can perform reasonably in a backwards-compatible mode, where no economic information is provided. When economic data exists, our approach can provide substantial performance benefits.
+This paper presented an initial investigation into the possibility of leveraging prices and a market-based mechanism for resource scheduling. We describe a protocol for use in the Mesos cluster scheduler with beneficial theoretical properties. Simulation evaluation shows that our market-based mechanism can perform reasonably in a backwards-compatible mode, where no economic information is provided. 
+We also provide theoretical and experimental evidence that our approach can help manage difficulties
+resulting from constraints that are unknown to the scheduler.
 
 \section{Acknowledgment}
 
