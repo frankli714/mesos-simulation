@@ -47,6 +47,7 @@
 %      \vrule height0.75em width0.5em depth0.25em\fi}
 
 \usepackage{amsmath}
+\usepackage{caption}
 \usepackage{mathtools}
 \usepackage{graphicx}
 \usepackage{amssymb}
@@ -743,10 +744,12 @@ In this section we prove some theorems that make this difficulty more concrete. 
 
 We will use the suggestive term ``realistic conditions'' to mean a situation in which any of the following occur (i.e., our negative results apply when any of these occur, and the setting is otherwise the simplest setting of static, homogeneous demands for homogeneous resources):
 
-Users have time-varying demands and tasks of varying importance.
-Users can apply additional computational resources to speed up a task (e.g. via speculative execution)
-Users face deadlines.
-Different resources are inhomogeneous, and tasks have inhomogeneous sensitivity to characteristics of resources. Either the scheduler does not make decisions on the basis of these inhomogeneities, or different resources are imperfect substitutes.
+\begin{itemize}
+\item Users have time-varying demands and tasks of varying importance.
+\item Users can apply additional computational resources to speed up a task (e.g. via speculative execution)
+\item Users face deadlines.
+\item Different resources are inhomogeneous, and tasks have inhomogeneous sensitivity to characteristics of resources. Either the scheduler does not make decisions on the basis of these inhomogeneities, or different resources are imperfect substitutes.
+\end{itemize}
 
 We say that a system is ``demand-based'' if it elicits a demand from each user and makes assignments on the basis of the stated demands. For example, DRF, asset allocation, and CEEI all fall into this class.
 \vspace{-5mm}
@@ -814,6 +817,7 @@ prefer to complete those tasks more rapidly at the expense of completing other t
 If user $i$ values jobs more in phase 2, it is easy to verify that any allocation which is both Pareto efficient and compatible with the sharing incentive must give user $i$ 
 more resources than user $j$ in phase 2 and (consequently) fewer resources than user $j$ in phase 1. 
 Since the scheduler must decide which user to give more resources in phase 1, it cannot possibly be Pareto efficient and compatible with the sharing incentive in both cases. \qed
+\qed
 \end{pproof}
 
 \subsection{Analysis of our policy}
@@ -848,6 +852,7 @@ and let $R_{-A}$ be the resources received by all other users. The key point is 
 
 Summing over all rounds of the auction, A values the total resources they receive at at least the amount they pay for them, 
 and user A values the total resources others receive at at most the amount that others pay for them. The desired result follows immediately. \qed
+\qed
 \end{pproof}
 
 Using the same idea, we can establish that if the size of a cluster is increased by a multiple of $(1 + \epsilon)$ and we add a set of (potentially malicious) users whose total
@@ -906,6 +911,7 @@ Since $B_1$ was an honest bid, the auctioneer can raise A's price by more than $
 and since the auctioneer continues to make favorable modifications until no more are available, it will do so.
 
 This contradicts the assumption that $(R_1, p_1)$ was the result of running the auction with bid $B_1$. \qed 
+\qed
 \end{pproof}
 \vspace{-5mm}
 We must also weaken the notion of Pareto efficiency in order for it to be achievable (see Theorem~\ref{no-efficiency})
@@ -918,6 +924,7 @@ there is no way to change the tasks which are scheduled at a single time $T$ in 
 \begin{pproof}
 At each individual time $T$, the allocation selected is chosen precisely to maximize welfare using the stated preferences of bidders. 
 Consequently, assuming that bidders honestly report their welfare, the allocation which is selected maximizes welfare. \qed
+\qed
 \end{pproof}
 
 \begin{table}[t!]
@@ -927,8 +934,8 @@ Consequently, assuming that bidders honestly report their welfare, the allocatio
     Desired & \small DRF & \small DRF & \small Market-based  \\
     Properties & \small(simple) & \small (realistic) & \small Mechanism \\
     \hline
-    \small Envy-Free & \cmark &  & Locally\footnote{No framework envies a framework that pays less.} \\
-    \small Pareto-Efficient & \cmark & Locally\footnote{With caveats arising from computational hardness of packing problems.} & Locally\footnote{With caveats arising from computational hardness of packing problems}  \\
+    \small Envy-Free & \cmark &  & Locally* \\
+    \small Pareto-Efficient & \cmark & Locally** & Locally**   \\
     \small Strategy-proof & \cmark & Locally  & Locally \\
     \small Sharing incentive & \cmark &  & \cmark\\
     \hline
@@ -937,6 +944,9 @@ Consequently, assuming that bidders honestly report their welfare, the allocatio
   \caption{Properties of DRF in a simple environment
  compared with properties of DRF and our economic mechanism
  in a more realistic environment (see section~\ref{drawbacks}).}
+\caption*{* No framework envies another framework that pays less.}
+\caption*{** Modulo difficulties resulting from indivisibility of tasks / computational
+hardness of packing problems.}
   \label{table:props}
 \end{table}
 
@@ -1096,7 +1106,7 @@ This paper presented an initial investigation into the possibility of leveraging
 We also provide theoretical and experimental evidence that our approach can help manage difficulties
 resulting from constraints that are unknown to the scheduler.
 
-\section{Acknowledgment}
+\section{Acknowledgments}
 
 We thank Professors Anthony Joseph and John Kubiatowicz for guidance and numerous suggestions throughout the course of this project. Also, we thank Charles Reiss for providing helpful tips on how best to use the Google cluster traces. Finally, we thank Ali Ghodsi for providing meaningful discussion into the theory behind our market-based mechanism.
 
