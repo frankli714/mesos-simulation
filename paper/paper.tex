@@ -728,6 +728,12 @@ The simulations were run on synthetic workloads generated from the statistical d
 \label{img:util_low}
 \end{figure}
 
+\begin{figure}
+
+\includegraphics[width=0.5\textwidth]{images/relative_completion_times.png}
+\caption{Relative average job completion times between DRF and auctions for all frameworks.}
+\label{img:relative}
+\end{figure}
 
 Currently, Mesos jobs and tasks are not attached to economic indicators, since DRF does not rely on any economic-based resource scheduler. Even if a market-based mechanism was used, many cluster jobs and tasks may not be able or willing to provide accurate pricing data. In the absence of this information, our scheme provides a default bidding policy. This ``backwards-compatible" mode must still perform comparable with DRF, especially given the current state of job requests.
 
@@ -737,7 +743,7 @@ Figure \ref{img:util_high} shows the CPU utilizations of DRF and the market-base
 
 Figure \ref{img:util_low} shows the CPU utilizations of DRF and the market-based mechanism in a low contention environment, when no resource is fully utilized. As we can see, DRF and the market-based mechanism perform nearly identical. Both policies have an average CPU utilization of 44\%. Again, we omit the memory and disk utilizations figures because they repeat the same story, but are less interesting due to the lower RAM and disk resource requirements of jobs.
 
-Finally, Figure \ref{img:reg_fairness} displays the split-wise share of cluster resources each of the five frameworks are allocated in the market-based mechanism. Under high contention, all five frameworks have queued tasks to run, and we see that each framework gets roughly a fifth of the cluster resources. This indicates the market-based mechanism allocates resources fairly , similar to DRF.
+Finally, Figure \ref{img:relative} displays the relative average job completion time between DRF and the market-based mechanism for the five frameworks. As we see, the ratio is roughly 1.0 for all frameworks, which indicates the market-based mechanism is roughly as fair as DRF, and that jobs complete at the same approximate rate.
 
 All of these results are gathered when the market-based mechanism uses a default bidding policy because the job requests provide no economic information. This shows that the market-based mechanism is ``backwards-compatible" by providing comparable utilization and fairness performances to DRF when pricing information is not used. This result is not completely surprising though, because the default bidding policy behaves similarly to DRF. DRF awards resources to the framework with the least dominant share. Under our default bidding policy, frameworks bid a proportion of their current budget. The framework that has been awarded the least resources will have the highest budget (through less spending on resources), and will be able to bid the highest. Hence the low-resource framework will be awarded the next resource offer, similarly to DRF.
 
