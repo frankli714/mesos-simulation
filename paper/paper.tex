@@ -272,24 +272,26 @@ frameworks receive a fair share of the cluster.
 Unfortunately, while the fairness policy used by Mesos is efficient and
 strategy-proof in a simple one-shot game with homogeneous resources, it is
 neither efficient nor strategy-proof in this more realistic setting. 
-%For example, a framework
-%using Mesos which prefers to run tasks on machines that already have relevant
-%data is forced to engage in strategic behavior: given a resource which it
-%\emph{could} use now, should it take the resource or decline it, so that it
-%might receive a better offer in the future? Solutions to this problem rely on
-%simple heuristics which require tuning based on the parameters of the system;
-%there are simple examples where the resulting allocations are not efficient
-%despite best-efforts of the clients, and in complex examples there is little to
-%believe the results are efficient. 
+For example, a framework
+using Mesos which prefers to run tasks on machines that already have relevant
+data is forced to engage in strategic behavior: given a resource which it
+\emph{could} use now, should it take the resource or decline it, so that it
+might receive a better offer in the future? Solutions to this problem rely on
+simple heuristics which require tuning based on the parameters of the system;
+there are simple examples where the resulting allocations are not efficient
+despite best-efforts of the clients, and in complex examples there is little to
+believe the results are efficient. 
 Moreover, the
 current design of Mesos is essentially unsuitable for hostile
-environments. Section \ref{sec:theory} provides detailed theoretical analyses.
-%; a framework which can use less than its ``fair share'' of the
-%resources at any point in time has no incentive to do so, and indeed has every
-%incentive to exploit all resources it can be allocated even if they are being
-%used arbitrarily inefficiently (and there is always \emph{something} to do with
-%idle resources, if only perform proof-of-work in exchange for small amounts of
-%money).
+environments. 
+For example,
+a framework which can use less than its ``fair share'' of the
+resources at any point in time has no incentive to do so, and indeed has every
+incentive to exploit all resources it can be allocated even if they are being
+used arbitrarily inefficiently (and there is always \emph{something} to do with
+idle resources, if only perform proof-of-work in exchange for small amounts of
+money).
+Our economic mechanisms are designed to partially remedy these problems.
 
 \subsection{Microeconomic methods}
 In this paper we confront the challenge of modifying Mesos to provide more
@@ -327,6 +329,52 @@ been considered are:
     difficult given the complexity and scale of the cluster scheduling problem.
 \end{enumerate}
 
+\subsection{Motivating examples}
+
+Consider the following typical situations within a cluster:
+\begin{enumerate}
+  \item Some clients have regular throughput and flexible deadlines, while some
+    clients have hard real-time constraints and variable traffic.
+  \item Different tasks make use of different characteristics of hardware on
+    machines in the cluster, for example high ratios of RAM to CPU on a
+    particular machine, or GPUs or other hardware that is available on only
+    certain machines.
+  \item Tasks require data which is located on disk or even in memory somewhere
+    in the cluster, and co-locating the tasks with the data improves
+    performance.
+\end{enumerate}
+
+In section~\ref{drawbacks} we show that current implementations
+of Mesos do not remain efficient, strategy-proof, envy-free,
+or compatible with the sharing incentive under these conditions.
+The key problem is that the accept/reject framework is not sufficiently expressive
+to allow users to ``honestly'' express their preferences in these cases,
+and so it is unsurprising that they are incentivized to engage
+in strategic behavior (indeed, they are intended to engage in strategic behavior)
+and the results need not be efficient.
+
+There have bene many ad hoc proposals to address some of these difficulties.
+For example, Jockey is a system which accomodates deadlines in a fair-share
+scheduler by increasing the allotted shares for users which are appraoching
+a deadline.
+However, these techniques tend to violate the theoretical guarantees
+of the underlying systems more starkly, and to require extensive tuning
+in order to achieve good performance.
+We seek a more general framework for addressing these difficulties.
+
+Similarly, we might cope with the need for pre-emption by using various
+heuristics to minimize the extent of overhead associated with evicting a running
+task.
+These heuristics may work well in practice, but are also likely to require
+tuning and to be sensitive to the exact nature of the cluster.
+
+An approach based on pricing might be able to solve all of these difficulties,
+by expressing the costs associated with missing a deadline or evicting a task 
+(potentially automatically) and then making scheduling decisions to maximize
+social welfare.
+We do not propose such an extensive solution in this paper; instead,
+we make an argument for the general desirability of such an approach and provide
+some extremely preliminary evidence for its feasibility.
 
 %\section{The case for microeconomic scheduling}
 %\label{sec:case}
@@ -521,7 +569,7 @@ been considered are:
 %    reifying those tradeoffs is only likely to help us improve the situation.
 %\end{enumerate}
 
-\section{Our auction}
+\section{Our allocation policy}
 
 This section describes the details of our market-based mechanism design.
 
@@ -595,6 +643,14 @@ need for communication between the master and the frameworks after each round,
 we use a \emph{proxy auction} where each framework makes a single bid for all
 rounds and agents running with the master represent each of them within the
 master.
+
+In the case of a single indivisible resource, this corresponds exactly
+to a second-price auction; in general it is quite similar
+to the Vickrey-Clarke-Groves auction, in which the chosen allocation
+maximizes social welfare and each framework is charged a price
+equal to the social welfare opportunity cost of the resources
+that framework requested. In the rest of this section we describe the auction
+itself in more detail.
 
 With each set of tasks, we associate a \emph{current price} in addition to the
 willingness to pay; then the difference between the latter and the former is the
