@@ -143,7 +143,7 @@
 \begin{abstract}
 Existing cluster managers typically allocate resources
 based on a fairness criterion such as dominant resource fairness. 
-However, this approach makes it difficult to accomodate complex requirements
+However, this approach makes it difficult to accommodate complex requirements
 without substantially increasing the complexity of the scheduler itself.
 Standard approaches to this challenge compromise the efficiency
 and fairness guarantees that make these simple scheduling policies attractive.
@@ -177,7 +177,7 @@ Large-scale computing clusters offer the potential for greater efficiency throug
 pooling of computational resources, but must contend with the problem of
 allocating these resources to users with competitive and potentially
 incompatible demands. Such conflicts are typically arbitrated by some \emph{fairness}
-criterions, such as dominant resource fairness (DRF) \cite{drf}, which benefit from their
+criteria, such as dominant resource fairness (DRF) \cite{drf}, which benefit from their
 simplicity, efficiency, and non-manipulability. Unfortunately, when applied in
 realistic settings --- when dealing with inhomogeneous resources, time-varying
 demands or deadlines, requirements for data locality, etc.---typical implementations
@@ -329,7 +329,7 @@ been considered are:
     difficult given the complexity and scale of the cluster scheduling problem.
 \end{enumerate}
 
-\subsection{Motivating examples}
+\subsection{Motivating examples}\label{examples}
 
 Consider the following typical situations within a cluster:
 \begin{enumerate}
@@ -353,16 +353,16 @@ and so it is unsurprising that they are incentivized to engage
 in strategic behavior (indeed, they are intended to engage in strategic behavior)
 and the results need not be efficient.
 
-There have bene many ad hoc proposals to address some of these difficulties.
-For example, Jockey is a system which accomodates deadlines in a fair-share
-scheduler by increasing the allotted shares for users which are appraoching
+There have been many ad hoc proposals to address some of these difficulties.
+For example, Jockey is a system which accommodates deadlines in a fair-share
+scheduler by increasing the allotted shares for users which are approaching
 a deadline.
 However, these techniques tend to violate the theoretical guarantees
 of the underlying systems more starkly, and to require extensive tuning
 in order to achieve good performance.
 We seek a more general framework for addressing these difficulties.
 
-Similarly, we might cope with the need for pre-emption by using various
+Similarly, we might cope with the need for preemption-  by using various
 heuristics to minimize the extent of overhead associated with evicting a running
 task.
 These heuristics may work well in practice, but are also likely to require
@@ -631,7 +631,7 @@ two-level representation:
 \end{itemize}
 While this obviously cannot represent all possible $\mathcal{B}$, it still
 allows enough flexibility to cover all of the applications we allude to
-in the paper---to handle dealdines, inhomogeneous resources, fragmentation,
+in the paper---to handle deadlines, inhomogeneous resources, fragmentation,
 tasks of differing priorities, and so on.
 
 \subsection{Ascending-bid clock auction}
@@ -699,7 +699,7 @@ of the cluster), since any framework which became richer
 than the others would begin winning auctions.
 
 \paragraph{Adjusting bids} To modify the 
-default policy to accomodate inhomogeneous resources,
+default policy to accommodate inhomogeneous resources,
 times, or tasks, we can simply modify framework's
 bids to adjust for the desirability of the resource being
 purchased or the importance of the purpose they are being used for.
@@ -717,7 +717,7 @@ is the possibility of \emph{hoarding}, in which one framework
 declines to use any resources during a certain period so that it can amass
 a much larger budget than any other resources.
 It can then spend this budget at a future point in order to monopolize the cluster,
-which may have undesirable conseuqences for frameworks that need uninterrupted service.
+which may have undesirable consequences for frameworks that need uninterrupted service.
 
 This can be prevented by using an appropriate bidding strategy
 (in general we recommend modifying bidding strategies to achieve a desired
@@ -728,7 +728,7 @@ during any window of length $T$, $A$ spends roughly $p$ times the total amount
 spent by all frameworks, and at every point in time $A$'s reserves are roughly equal to $p$
 times the total reserves of all frameworks (where $T$ is an upper bound on how frequently auctions are conducted,
 either the maximum length of a task or the period of time after which the resources used by a task
-will be reauctioned and potentially revoked).
+will be re-auctioned and potentially revoked).
 In fact the second invariant follows from the first, which can be approximately attained
 by simply scaling all bids during an interval of time $T$ to the appropriate level.
 
@@ -859,7 +859,7 @@ this property also holds at the end of the round.
 In this step we rely on our assumption that user A's valuations for their own holdings do not change after the auction is announced 
 (otherwise it may be possible for user A to become envious in between rounds as more information is revealed, rather than during a round of the auction). 
 We note in passing that similar assumptions are required to prove that DRF is envy-free in the dynamic setting,
-even in a simple rather than realistic enviornment.
+even in a simple rather than realistic environment.
 \qed
 \end{pproof}
 
@@ -972,7 +972,7 @@ All of these results are gathered when the market-based mechanism uses a default
 
 \subsection{Performance With Pricing\\}
 
-When pricing information is provided, we show that the market-based mechanism can provide better performance than in DRF. As discussed in Section TODO, there are many situations in which prices can be used to better encapsulate a framework's preferences. As a case study, we investigate one particular scenario of inhomogeneous performing resources. 
+When pricing information is provided, we show that the market-based mechanism can provide better performance than in DRF. As discussed in Section~\ref{examples}, there are many situations in which prices can be used to better encapsulate a framework's preferences. As a case study, we investigate one particular scenario of inhomogeneous performing resources. 
 
 In this case, we assume certain nodes have a special resource that significantly improves job performances, while the remaining nodes do not. In a realistic case, this special resource could be a GPU, which can significantly reduce CPU-bounded job completion times. While most jobs will see some performance benefits from running on a GPU, some jobs may be specifically crafted for optimal performance on a GPU, and hence will see the largest performance improvement if run on a GPU.
 
@@ -1001,9 +1001,9 @@ Job schedulers like TORQUE \cite{torque}, Condor \cite{condor}, and LSF
 within a high-performance-computing (HPC) or grid-computing environment.
 For the most part, they do not use a two-level scheduling model like we do but
 instead operate as a queue for predefined jobs which are run as resources become
-available. Machines and job requirements also tend to show more homogeniety
+available. Machines and job requirements also tend to show more homogeneity
 within such environments (for example, the ratio between CPU, memory, and disk),
-so sthe amount of optimization possible with pricing is lower.
+so the amount of optimization possible with pricing is lower.
 
 \subsection{Cloud and datacenter computing}
 Our work depends heavily on Mesos~\cite{mesos}, as we use its model of
@@ -1049,7 +1049,7 @@ resources equitably among a set of people. Our problem differs somewhat from
 fair division in that we don't seek to allocate every bit of the cluster to the
 set of users. We assume that a user might be happy to have received nothing if
 their value of gaining resources was too low compared to the others, since the
-user keeps some amont of money unspent as a a result.
+user keeps some amount of money unspent as a a result.
 
 One of the economic fair division solutions is CEEI~\cite{moulin2004fair}, or
 competitive equilibrium from equal incomes. This mechanism emulates a market
@@ -1057,19 +1057,19 @@ where participants initially receive an equal amount of resources and trade some
 of them until each has the desired amount of resources. CEEI's use of a market
 differs significantly from ours in that we do not use it only as a vehicle for
 achieving a fair allocation, but also for frameworks to express their
-preferences in a fine-grianed way using prices and willingness to pay.
+preferences in a fine-grained way using prices and willingness to pay.
 
 \section{Future Work}
 \label{sec:future}
 
-In our evaluation, we showed through simulation the benefits of our protocol in the specific case of inhomogenous performing resources. However, there are a number of other user constraints that should theoretically be better expressed using prices than existing methods. Future work would be to experimentally evaluate such cases. A few such user constraints include deadlines and varying latency sensitivities, differential service guarantees, deadweight losses of evictions, costs of fragmenting jobs, various execution types (e.g. speculative vs essential execution), and co-location of data or other important resources.
+In our evaluation, we showed through simulation the benefits of our protocol in the specific case of inhomogeneous performing resources. However, there are a number of other user constraints that should theoretically be better expressed using prices than existing methods. Future work would be to experimentally evaluate such cases. A few such user constraints include deadlines and varying latency sensitivities, differential service guarantees, deadweight losses of evictions, costs of fragmenting jobs, various execution types (e.g. speculative vs essential execution), and co-location of data or other important resources.
 
 \section{Conclusion}
 \label{sec:conclusion}
 
 This paper presented an initial investigation into the possibility of leveraging prices and a market-based mechanism for resource scheduling. We describe a protocol for use in the Mesos cluster scheduler with beneficial theoretical properties. Simulation evaluation shows that our market-based mechanism can perform reasonably in a backwards-compatible mode, where no economic information is provided. When economic data exists, our approach can provide substantial performance benefits.
 
-\section{Acknowledgement}
+\section{Acknowledgment}
 
 We thank Professors Anthony Joseph and John Kubiatowicz for guidance and numerous suggestions throughout the course of this project. Also, we thank Charles Reiss for providing helpful tips on how best to use the Google cluster traces. Finally, we thank Ali Ghodsi for providing meaningful discussion into the theory behind our market-based mechanism.
 
