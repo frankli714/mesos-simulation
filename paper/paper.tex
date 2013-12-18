@@ -30,6 +30,9 @@
 
 \usepackage{mathtools}
 \usepackage{graphicx}
+\usepackage{amssymb}
+\usepackage{pifont}
+\newcommand{\cmark}{\ding{51}}%
 
 \begin{document}
 
@@ -181,7 +184,7 @@ number of ad hoc approaches currently pursued to solve similar problems.
 In section \ref{sec:design}, we describe our protocol and the most important design decisions
 we made. In particular, we describe the mechanisms we used to ensure that our
 protocol remains backwards-compatible, and can be applied without any change to
-the clients’ code.
+the clients' code.
 
 In section \ref{sec:eval}, we report on simulated comparisons between our
 design and existing approaches: (a) we evaluate the computational and communication
@@ -336,7 +339,7 @@ alternative, or will yield a typical resource if they could make particularly
 good use of an alternative. And indeed this is done by many clients to Mesos.
 
 This example clearly shows that in this case, the mechanism provided by Mesos is
-\emph{not} strategy-proof. Worse, it’s not Pareto efficient if people are
+\emph{not} strategy-proof. Worse, it's not Pareto efficient if people are
 honest, and need not be Pareto efficient if clients behave optimally. Similar
 things happen in the other examples we mentioned, or in most of the similar
 alternatives which we can envision:
@@ -509,61 +512,6 @@ This paradigm has the virtue of being modular in a number of important respects:
     is on the critical path.
 \end{enumerate}
 
-\section{Theoretical analysis}
-
-\subsection{Drawbacks of non-economic scheduling}
-Most scheduling policies used in practice do not use any economic information: clients request resources, and schedulers allocate those resources. Clients may be assigned priorities and/or budgets which are used by the scheduler to determine how many resources to assign to that client, but requests themselves are an all-or-nothing affair.
-
-These policies can work well when the scheduler is aware of all of the relevant constraints faced by clients. But when constraints are invisible to the scheduler, as is the case in Mesos, this paradigm can become problematic. Approaches like lottery scheduling (though not in fact used in Mesos) can partly get around these problems by ensuring that each client receives a proportional share of every resource type, even if the differences between resources are not known to the scheduler. But these techniques cannot easily ensure that a resource is given to the framework that needs it most.
-
-In this section we prove some theorems that make this difficulty more concrete. Our results illustrate the general theme that the theoretical guarantees of fairness-based schedulers are highly brittle to realistic variations in the model. All of our results are straightforward consequences of well-understood limitations in mechanism design. We feel that these limitations are real and applicable to scheduling problems, and that they show fairly clearly that strong theoretical guarantees like strategy-proofness are not pragmatically desirable. This is in concordance with the dominance of mechanisms which are not strategy-proof in most complex environments. We stress that the results in this section are primarily intended to illustrate the limited applicability of the theoretical analysis of existing schedulers (and hence to excuse the lack of such analysis for our own system) rather than to directly demonstrate practical superiority.
-
-We will use the suggestive term “realistic conditions” to mean a situation in which any of the following occur (i.e., our negative results apply when any of these occur, and the setting is otherwise the simplest setting of static, homogeneous demands for homogeneous resources):
-
-Users have time-varying demands and tasks of varying importance.
-Users can apply additional computational resources to speed up a task (e.g. via speculative execution)
-Users face deadlines.
-Different resources are inhomogeneous, and tasks have inhomogeneous sensitivity to characteristics of resources. Either the scheduler does not make decisions on the basis of these inhomogeneities, or different resources are imperfect substitutes.
-
-We say that a system is “demand-based” if it elicits a demand from each user and makes assignments on the basis of the stated demands. For example, DRF, asset allocation, and CEEI all fall into this class.
-
-Theorem 1. Any demand-based system which is Pareto efficient under realistic conditions must sometimes assign the entire cluster to a single user, an extreme violation of fairness.
-
-Proof: We provide the proof for the time-varying demands case. The other arguments are exactly analogous. We give an extremely simple and artificial case, though analogous behavior would be expected in more realistic cases.
-
-Suppose that there are two users and that at each time each user has enough tasks to consume all of the clusters’ resources. Tasks arrive at multiples of time T and last for T rounds. Moreover, suppose that during each interval of time T each user has an independently and uniformly randomly generated priority which is either “high” or “low.” The only characteristic of these priorities is that, all else equal, they would prefer run one extra high priority task at the expense of one fewer low priority task.
-
-Since the scheduler is demand-based and the user’s priority levels are changing across time, the allocation must be independent of the priority of the users. So if each user receives a non-zero share of the resources, then each user must receive a non-zero share of the resources while they are in the “high” priority state and the other user is in the “low” priority state. 
-
-But now consider the alternative allocation which exchanges these periods, i.e. assigns each user R resources more during their high priority period and R resources fewer during their low priority period. By definition, this alternative allocation is preferred to the real allocation, contradicting Pareto efficiency.
-
-Theorem 2. Under realistic conditions, the implementation of DRF in Mesos is not strategy-proof, Pareto efficient, envy-free, or compatible with the sharing incentive. DRF satisfies a weaker form of strategy-proofness, “look-ahead strategy proofness,” such that a user is incentivized to honestly state their demands given their beliefs about the effect of those demands on the scheduler’s future behavior. 
-
-Proof: For variety, we consider the case of inhomogeneous resources. Again, the proof is identical in any of the given cases. For each property we construct a special situation in which DRF fails to achieve that property.
-
-Strategy-proofness: consider the setting where a framework’s top priority is achieving some particularly valuable resource X which is currently in use, though they have other tasks which they value less. To be most extreme, suppose the user values any outcome in which they receive X higher than any outcome in which they do not. A user can arrange to receive X by strategically passing up resource offers which they could use, in order to maximize their probability of being offered the resource X when it first becomes free. DRF is only “strategy-proof” in the sense that a user who anticipates all future behavior of the scheduler will honestly state whether they want a resource in light of the consequences on the scheduler. 
-Pareto-efficiency: This is a corollary of the preceding theorem. In the case of inhomogeneous resources, suppose that two users have streams of tasks, some of which run faster on resources of type A and some of which run faster on resources of type B. Then no demand-based scheduler can ensure that tasks are always placed on the resources on which they run fastest.
-Envy-freeness and compatibility with sharing incentive: Suppose that one user consumes ⅓ of the resources in the cluster and another consumes ½ of the resources, but a particular 10% of the resources in the cluster are several times more valuable (to every user) than they appear. This could be based on hardware characteristics to which the scheduler is oblivious. The user who consumes ⅓ of the resources receives all resource offers first, and so claims all 10% of these resources. But this means that this user receives significantly more total value than the other user, violating both envy-freeness and the sharing incentive. 
-
-Theorem 3. The sharing incentive and Pareto efficiency are incompatible for demand-based systems which deal with time-varying demands of varying importance.
-
-Proof: %XXX, Insert proof, it’s super straightforward]
-\subsection{Virtues of economic scheduling}
-In this section, we show that our system possesses weaker versions of the theoretical guarantees of the theoretical properties that have been ascribed to existing schedulers. In light of the arguments in the preceding section, we hope to illustrate that the two systems are on comparable theoretical footings.
-
-The first theorem considers the setting in which user’s willingness to pay [XXX continue]
-
-Theorem 4. [Sharing incentive] Each user A values the total resources they receive at least as much as they value their share of the cluster (i.e. the amount paid by A divided by the entire cost paid by all users of the cluster).
-
-Proof: Consider a particular user A. During any auction, let $p_A$ be the price that $A$ pays, 
-let $p_B$ be the price paid by all other users, let $R_A$ be the resources received by A, and let $R_B$ be the resources received by all other users. The key point is that user A values $R_A$ at at least $p_A$, and values $R_B$ at at most $p_B$. Thus user A values their share of the resources at at least $\frac {p_A}{p_A + p_B}$.
-
-%XXX finish proof, very easy.
-
-Theorem 5. Using a closed currency, if the rate of income of a particular user is p, that user can adopt a bidding strategy which ensures that they receive a p fraction of the cluster during any period of length T, where T is an upper bound for the length of a task (i.e. the maximum of the minimum amount of time after which any task can be revoked).
-
-Proof: 
-
 \section{Market-based Mechanism Design}
 \label{sec:design}
 \subsection{Setting}
@@ -575,10 +523,10 @@ obtained resources to run \emph{tasks} on the slaves.
 
 These participants generally run as daemons on the cluster.  Typically, a single
 cluster would consist of up to tens of thousands of machines, each of which
-running a slave process. A single master process (or multiple redundant ones
+runs a slave process. A single master process (or multiple redundant ones
 for reliability) communicates directly with all slave processes.  Each slave
 process manages the tasks which run on its machine, handling requests to start
-and stop various tasks from the master.
+and stop tasks from the master.
 
 The frameworks representing the clusters also run as daemons and register
 themselves with the master. They communicate exclusively with the master, which
@@ -587,11 +535,9 @@ to be run.
 
 \subsection{Budgets and income}
 The master keeps track of a budget for each framework: its current balance and
-the amount of income it receives per second. The automatically adjusts a
-framework's balance when it performs actions which require payment. Currently,
-we allow a framework to incur a negative income (if it is spending beyond its
-means) and also a negative balance (if negative income lasts long enough to
-remove all of the savings) for simplicity.
+the amount of income it receives per second. It automatically adjusts a
+framework's balance when it performs actions which require payment. For simplicity,
+we allow a framework to incur a negative income and also a small temporary negative balance, although we do not accept bids from a framework with a negative balance.
 
 \subsection{Resource offers and bidding}
 Periodically, when there are resources currently available, the master will
@@ -637,8 +583,8 @@ framework's bid initially sets the current price to equal a \emph{reserve price}
 based on the amount of resources within the bid.
 
 For the master, the goal of the auction is to pick a set of tasks to run which
-is feasible (i.e., does not use resource beyond what is currently available) and
-which maximizes the revenue (the sum of the \emph{current price} for each of the
+is feasible (i.e., does not use resources beyond what is currently available) and
+which maximizes the revenue (the sum of the \emph{current prices} for each of the
 tasks).
 
 The auction operates by maintaining a set of winners, and asking each of
@@ -668,6 +614,82 @@ afford to pay more, at least for a limited amount of time before its balance is
 exhausted. Also, tasks which require more resources should have a
 correspondingly higher willingness to pay.
 
+\section{Theoretical analysis}
+
+\subsection{Drawbacks of non-economic scheduling}
+Most scheduling policies used in practice do not use any economic information: clients request resources, and schedulers allocate those resources. Clients may be assigned priorities and/or budgets which are used by the scheduler to determine how many resources to assign to that client, but requests themselves are an all-or-nothing affair.
+
+These policies can work well when the scheduler is aware of all of the relevant constraints faced by clients. But when constraints are invisible to the scheduler, as is the case in Mesos, this paradigm can become problematic. Approaches like lottery scheduling (though not in fact used in Mesos) can partly get around these problems by ensuring that each client receives a proportional share of every resource type, even if the differences between resources are not known to the scheduler. But these techniques cannot easily ensure that a resource is given to the framework that needs it most.
+
+In this section we prove some theorems that make this difficulty more concrete. Our results illustrate the general theme that the theoretical guarantees of fairness-based schedulers are highly brittle to realistic variations in the model. All of our results are straightforward consequences of well-understood limitations in mechanism design. We feel that these limitations are real and applicable to scheduling problems, and that they show fairly clearly that strong theoretical guarantees like strategy-proofness are not pragmatically desirable. This is in concordance with the dominance of mechanisms which are not strategy-proof in most complex environments. We stress that the results in this section are primarily intended to illustrate the limited applicability of the theoretical analysis of existing schedulers (and hence to excuse the lack of such analysis for our own system) rather than to directly demonstrate practical superiority.
+
+We will use the suggestive term ``realistic conditions" to mean a situation in which any of the following occur (i.e., our negative results apply when any of these occur, and the setting is otherwise the simplest setting of static, homogeneous demands for homogeneous resources):
+
+Users have time-varying demands and tasks of varying importance.
+Users can apply additional computational resources to speed up a task (e.g. via speculative execution)
+Users face deadlines.
+Different resources are inhomogeneous, and tasks have inhomogeneous sensitivity to characteristics of resources. Either the scheduler does not make decisions on the basis of these inhomogeneities, or different resources are imperfect substitutes.
+
+We say that a system is ``demand-based" if it elicits a demand from each user and makes assignments on the basis of the stated demands. For example, DRF, asset allocation, and CEEI all fall into this class.
+
+Theorem 1. Any demand-based system which is Pareto efficient under realistic conditions must sometimes assign the entire cluster to a single user, an extreme violation of fairness.
+
+Proof: We provide the proof for the time-varying demands case. The other arguments are exactly analogous. We give an extremely simple and artificial case, though analogous behavior would be expected in more realistic cases.
+
+Suppose that there are two users and that at each time each user has enough tasks to consume all of the clusters' resources. Tasks arrive at multiples of time T and last for T rounds. Moreover, suppose that during each interval of time T each user has an independently and uniformly randomly generated priority which is either ``high" or ``low." The only characteristic of these priorities is that, all else equal, they would prefer run one extra high priority task at the expense of one fewer low priority task.
+
+Since the scheduler is demand-based and the user's priority levels are changing across time, the allocation must be independent of the priority of the users. So if each user receives a non-zero share of the resources, then each user must receive a non-zero share of the resources while they are in the ``high" priority state and the other user is in the ``low" priority state. 
+
+But now consider the alternative allocation which exchanges these periods, i.e. assigns each user R resources more during their high priority period and R resources fewer during their low priority period. By definition, this alternative allocation is preferred to the real allocation, contradicting Pareto efficiency.
+
+Theorem 2. Under realistic conditions, the implementation of DRF in Mesos is not strategy-proof, Pareto efficient, envy-free, or compatible with the sharing incentive. DRF satisfies a weaker form of strategy-proofness, ``look-ahead strategy proofness," such that a user is incentivized to honestly state their demands given their beliefs about the effect of those demands on the scheduler's future behavior. 
+
+Proof: For variety, we consider the case of inhomogeneous resources. Again, the proof is identical in any of the given cases. For each property we construct a special situation in which DRF fails to achieve that property.
+
+Strategy-proofness: consider the setting where a framework's top priority is achieving some particularly valuable resource X which is currently in use, though they have other tasks which they value less. To be most extreme, suppose the user values any outcome in which they receive X higher than any outcome in which they do not. A user can arrange to receive X by strategically passing up resource offers which they could use, in order to maximize their probability of being offered the resource X when it first becomes free. DRF is only ``strategy-proof" in the sense that a user who anticipates all future behavior of the scheduler will honestly state whether they want a resource in light of the consequences on the scheduler. 
+Pareto-efficiency: This is a corollary of the preceding theorem. In the case of inhomogeneous resources, suppose that two users have streams of tasks, some of which run faster on resources of type A and some of which run faster on resources of type B. Then no demand-based scheduler can ensure that tasks are always placed on the resources on which they run fastest.
+Envy-freeness and compatibility with sharing incentive: Suppose that one user consumes ⅓ of the resources in the cluster and another consumes ½ of the resources, but a particular 10% of the resources in the cluster are several times more valuable (to every user) than they appear. This could be based on hardware characteristics to which the scheduler is oblivious. The user who consumes ⅓ of the resources receives all resource offers first, and so claims all 10% of these resources. But this means that this user receives significantly more total value than the other user, violating both envy-freeness and the sharing incentive. 
+
+Theorem 3. The sharing incentive and Pareto efficiency are incompatible for demand-based systems which deal with time-varying demands of varying importance.
+
+Proof: %XXX, Insert proof, it's super straightforward]
+\subsection{Virtues of economic scheduling}
+In this section, we show that our system possesses weaker versions of the theoretical guarantees of the theoretical properties that have been ascribed to existing schedulers. In light of the arguments in the preceding section, we hope to illustrate that the two systems are on comparable theoretical footings.
+
+The first theorem considers the setting in which user's willingness to pay [XXX continue]
+
+Theorem 4. [Sharing incentive] Each user A values the total resources they receive at least as much as they value their share of the cluster (i.e. the amount paid by A divided by the entire cost paid by all users of the cluster).
+
+Proof: Consider a particular user A. During any auction, let $p_A$ be the price that $A$ pays, 
+let $p_B$ be the price paid by all other users, let $R_A$ be the resources received by A, and let $R_B$ be the resources received by all other users. The key point is that user A values $R_A$ at at least $p_A$, and values $R_B$ at at most $p_B$. Thus user A values their share of the resources at at least $\frac {p_A}{p_A + p_B}$.
+
+%XXX finish proof, very easy.
+
+Theorem 5. Using a closed currency, if the rate of income of a particular user is p, that user can adopt a bidding strategy which ensures that they receive a p fraction of the cluster during any period of length T, where T is an upper bound for the length of a task (i.e. the maximum of the minimum amount of time after which any task can be revoked).
+
+Proof: 
+
+\begin{table*}[t!]
+\begin{center}
+    \begin{tabular}{| l | l | l | l | l | l |}
+    \hline
+    Desired & \small DRF & \small DRF & \small Market-based  & something & something\\
+    Properties & \small(simple) & \small (complex) & \small Mechanism  & something & something\\
+    \hline
+    \small Envy-Freeness & \cmark & \cmark  & \cmark & \cmark   & \cmark\\
+    \small Pareto-Efficiency & 5 & 6  & 4  & \cmark  & \cmark\\
+    \small Resource Monotonicity & 8 & 9  & 4  & \cmark  & \cmark \\
+    7 & 8 & 9  & 4  & \cmark  & \cmark \\
+    7 & 8 & 9  & 4  & \cmark  & \cmark\\
+    7 & 8 & 9  & 4 & \cmark  & \cmark\\
+    \hline
+    \end{tabular}
+\end{center}
+  \caption{A simple table}
+  \label{table:props}
+\end{table*}
+
+
 \section{Experimental Evaluation}
 \label{sec:eval}
 
@@ -683,17 +705,31 @@ The simulations were run on synthetic workloads generated from the statistical d
 
 \subsection{Performance Without Pricing\\}
 
+\begin{figure}
+\includegraphics[width=0.5\textwidth]{images/util_high.png}
+\caption{Utilization achieved by DRF and our policy on a simulated 25-node CPU-bound cluster.  DRF's average utilization is 98\% average utilization while ours is 99\%.}
+\label{img:util_high}
+\end{figure}
+
+\begin{figure}
+
+\includegraphics[width=0.5\textwidth]{images/util_low.png}
+\caption{Behavior of DRF and our policy on a simulated 100-node cluster. Both policies have average utilization of 44\%.}
+\label{img:util_low}
+\end{figure}
+
+
 Currently, Mesos jobs and tasks are not attached to economic indicators, since DRF does not rely on any economic-based resource scheduler. Even if a market-based mechanism was used, many cluster jobs and tasks may not be able or willing to provide accurate pricing data. In the absence of this information, our scheme provides a default bidding policy. This ``backwards-compatible" mode must still perform comparable with DRF, especially given the current state of job requests.
 
 To investigate this feature, we ran our simulator using both DRF and the market-based mechanism under the default bidding policy. We ran under two cluster environments, a 25-node cluster to simulate high resource contention, and a 100-node cluster to simulate a light workload. All nodes were homogeneous, with normalized CPU, RAM, and disk resources of 1. We ran using a statistical workload for five computing frameworks, each submitting 20 jobs in parallel. For each environment, we evaluated the resource utilization and job completion times of DRF and the market-based mechanism.
 
-Figures CPU-UTILIZATION and RAM-UTILIZATION show the CPU and RAM utilizations of DRF and the market-based mechanism in the high contention environment. As noted, the Google traces indicated cluster jobs were primarily CPU-bound, and hence the cluster witnesses near-maximal CPU utilization but lower RAM utilization. Figure CPU-UTILIZATION indicates that the utilization achieved by DRF and the default bidding policy are nearly identical. The average DRF utilization is approximately 98\%, while the market-based mechanism is approximately 99\%. Note the graph begins after 10 hours, when consistent maximum contention is reached. Figure RAM-UTILIZATION depicts the memory utilization, showing again the similar performance between DRF and the market-based mechanism. DRF's average memory utilization is TODO\%, while the market-based mechanism's average memory utilization is TODO\%. We do not show the disk utilization because very few jobs in the Google traces used local disk space (presumably instead relying on the Google File System).
+Figure \ref{img:util_high} shows the CPU utilizations of DRF and the market-based mechanism in the high contention environment.  The utilizations achieved by DRF and the default bidding policy are nearly identical. The average DRF utilization is approximately 98\%, while the market-based mechanism is approximately 99\%. Note the graph begins after 10 hours, when consistent maximum contention is reached. We elide the memory utilizations graph because it is not under high contention, as the Google traces indicate jobs are CPU bound, and looks similarly to Figure \ref{img:util_low}. However, it shows again the nearly identical performance between DRF and the market-based mechanism. Similarly, we do not show the disk utilization because very few jobs in the Google traces used local disk space (presumably instead relying on a Google-internal reliable file system).
 
-Figure CPU-UTILIZATION-LOW shows the CPU utilizations of DRF and the market-based mechanism in a low contention environment, when no resource is fully utilized. As we can see, DRF and the market-based mechanism perform nearly identical. Both policies have an average CPU utilization of 44\%. We elide the memory and disk utilization figures because they repeat the same story, but are less interesting due to the lower RAM and disk resource requirements of jobs.
+Figure \ref{img:util_low} shows the CPU utilizations of DRF and the market-based mechanism in a low contention environment, when no resource is fully utilized. As we can see, DRF and the market-based mechanism perform nearly identical. Both policies have an average CPU utilization of 44\%. Again, we omit the memory and disk utilizations figures because they repeat the same story, but are less interesting due to the lower RAM and disk resource requirements of jobs.
 
-Finally, Figure JOB-COMPLETION displays the progression of workload completion under both scheduling policies. When all tasks of a job are completed, the job is considered finished. The graph shows the fraction of complete jobs as time progresses. Again, both policies result in similar behaviour, completing the workload in nearly identical fashion.
+Finally, Figure \ref{img:reg_fairness} displays the split-wise share of cluster resources each of the five frameworks are allocated in the market-based mechanism. Under high contention, all five frameworks have queued tasks to run, and we see that each framework gets roughly a fifth of the cluster resources. This indicates the market-based mechanism allocates resources fairly , similar to DRF.
 
-All of these results are gathered when the market-based mechanism uses a default bidding policy because the job requests provide no economic information. This shows that the market-based mechanism is ``backwards-compatible" by providing comparable performance to DRF when pricing information is not used. This result is not completely surprising though, because the default bidding policy behaves similarly to DRF. DRF awards resources to the framework with the least dominant share. Under our default bidding policy, frameworks bid a proportion of their current budget. The framework that has been awarded the least resources will have the highest budget (through less spending on resources), and will be able to bid the highest. Hence the low-resource framework will be awarded the next resource offer, similarly to DRF.
+All of these results are gathered when the market-based mechanism uses a default bidding policy because the job requests provide no economic information. This shows that the market-based mechanism is ``backwards-compatible" by providing comparable utilization and fairness performances to DRF when pricing information is not used. This result is not completely surprising though, because the default bidding policy behaves similarly to DRF. DRF awards resources to the framework with the least dominant share. Under our default bidding policy, frameworks bid a proportion of their current budget. The framework that has been awarded the least resources will have the highest budget (through less spending on resources), and will be able to bid the highest. Hence the low-resource framework will be awarded the next resource offer, similarly to DRF.
 
 \subsection{Performance With Pricing\\}
 
@@ -705,9 +741,17 @@ The current Mesos implementation does not recognize this special sort of inhomog
 
 We simulate this scenario using a 64-node cluster, where 16 nodes have the special resource. Jobs from the statistical workload are uniformly randomly assigned one of two speedup factors, such that all tasks in a job experience the same speedup factor. The ``slow" speedup reduces task runtime by 10\%, while the ``fast" speedup reduces task runtime by 90\%. All tasks with a ``fast" speedup are marked as preferring a special resource slave, and a framework in DRF Mesos will schedule a ``fast" task on a special resource slave if possible. The workload was again generated for five frameworks, with up to 20 jobs running in parallel.
 
-Figure JOB-COMPLETION depicts the time progression of job completions, where a job is considered finished when all of its tasks are finished. As the figure depicts, the market-based mechanism is consistently ahead of DRF at all times, and finishes all jobs in about 20\% less time than DRF. Looking in detail, we find that DRF schedules only 30\% of ``fast" tasks on special resource slaves, while the market-based mechanism schedules 60\%. One might note that around the eighth hour, it appears DRF catches up to the market-based mechanism before falling behind again. This effect is caused by a long running job that the market-based mechanism schedules earlier than DRF. Its completion progresses the fraction of job completion minimally yet accounts for a long period of time. This allows DRF, which is still completing earlier short-lived tasks, to momentarily catch up in the fraction of job completion. When DRF schedules the same long-lived job at a latter point, it once again lags behind the market-based mechanism.
+Figure \ref{img:inhomo} depicts the time progression of job completions, where a job is considered finished when all of its tasks are finished. As the figure depicts, the market-based mechanism is consistently ahead of DRF at all times, and finishes all jobs in about 20\% less time than DRF. Looking in detail, we find that DRF schedules only 30\% of ``fast" tasks on special resource slaves, while the market-based mechanism schedules 60\%. One might note that around the eighth hour, it appears DRF catches up to the market-based mechanism before falling behind again. This effect is caused by a long running job that the market-based mechanism schedules earlier than DRF. Its completion progresses the fraction of job completion minimally yet accounts for a long period of time. This allows DRF, which is still completing earlier short-lived tasks, to momentarily catch up in the fraction of job completion. When DRF schedules the same long-lived job at a latter point, it once again lags behind the market-based mechanism.
 
 Hence, in the case of inhomogeneous performing resources, the market-based mechanism can allow frameworks to better express their preferences than DRF, resulting in better performance for the market-based mechanism. DRF only allows a framework to specifically target special resource slaves when the framework is offered, whereas the market-based mechanism allows frameworks who benefit most from a special resource slave to outbid others. By better scheduling jobs on machines that best complete them, we see the overall performance improvements of the market-based mechanism.
+
+
+\begin{figure}
+\includegraphics[width=0.5\textwidth]{images/inhomo_times.png}
+\caption{The results of simulating Mesos on a cluster of 64 machines, of which 16 have access to a special resource. DRF schedules 30\% of tasks on the optimal machine when frameworks prioritize appropriately, while a simple market-based policy schedules 60\%.}
+\label{img:inhomo}
+\end{figure}
+
 
 \section{Related Work}
 \subsection{Grid computing}
