@@ -54,6 +54,9 @@
 \usepackage{pifont}
 \newcommand{\cmark}{\ding{51}}%
 
+ \makeatletter
+  \let\@copyrightspace\relax
+   \makeatother
 
 \begin{document}
 
@@ -252,7 +255,7 @@ have deadlines on the scale of seconds while others have deadlines of hours or
 days, some may require specialized hardware available on only certain machines,
 some may require using the same machines consistently while others can use
 different machines at different times, some may have complex constraints on data
-locality, etc. 
+locality, etc. \\
 
 \subsection{Mesos}
 The Mesos cluster manager is designed to address these problems, and to run
@@ -1016,7 +1019,7 @@ We simulate this scenario using a 64-node cluster, where 16 nodes have the speci
 
 Figure \ref{img:inhomo} depicts the time progression of job completions, where a job is considered finished when all of its tasks are finished. As the figure depicts, the market-based mechanism is consistently ahead of DRF at all times, and finishes all jobs in about 20\% less time than DRF. Looking in detail, we find that DRF schedules only 30\% of ``fast" tasks on special resource slaves, while the market-based mechanism schedules 60\%. One might note that around the eighth hour, it appears DRF catches up to the market-based mechanism before falling behind again. This effect is caused by a long running job that the market-based mechanism schedules earlier than DRF. Its completion progresses the fraction of job completion minimally yet accounts for a long period of time. This allows DRF, which is still completing earlier short-lived tasks, to momentarily catch up in the fraction of job completion. When DRF schedules the same long-lived job at a latter point, it once again lags behind the market-based mechanism.
 
-Hence, in the case of inhomogeneous performing resources, the market-based mechanism can allow frameworks to better express their preferences for special resources than DRF, resulting in better performance for the market-based mechanism. DRF only allows a framework to specifically target special resource slaves when the framework is offered, whereas the market-based mechanism allows frameworks who benefit most from a special resource slave to outbid others.
+Hence, in the case of inhomogeneous performing resources, the market-based mechanism can allow frameworks to better express their preferences for special resources than DRF, resulting in better performance for the market-based mechanism. DRF only allows a framework to specifically target special resource slaves when the framework is offered, whereas the market-based mechanism allows frameworks who benefit most from a special resource slave to outbid others.\\
 
 
 \begin{figure}
@@ -1110,7 +1113,7 @@ In our evaluation, we showed through simulation the benefits of our protocol in 
 
 This paper presented an initial investigation into the possibility of leveraging prices and a market-based mechanism for resource scheduling. We describe a protocol for use in the Mesos cluster scheduler with beneficial theoretical properties. Simulation evaluation shows that our market-based mechanism can perform reasonably in a backwards-compatible mode, where no economic information is provided. 
 We also provide theoretical and experimental evidence that our approach can help manage difficulties
-resulting from constraints that are unknown to the scheduler.
+resulting from constraints that are unknown to the scheduler.\\\\
 
 \section{Acknowledgments}
 
