@@ -143,7 +143,7 @@
 \begin{abstract}
 Existing cluster managers typically allocate resources
 based on a fairness criterion such as dominant resource fairness. 
-However, this approach makes it difficult to accomodate complex requirements
+However, this approach makes it difficult to accommodate complex requirements
 without substantially increasing the complexity of the scheduler itself.
 Standard approaches to this challenge compromise the efficiency
 and fairness guarantees that make these simple scheduling policies attractive.
@@ -177,7 +177,7 @@ Large-scale computing clusters offer the potential for greater efficiency throug
 pooling of computational resources, but must contend with the problem of
 allocating these resources to users with competitive and potentially
 incompatible demands. Such conflicts are typically arbitrated by some \emph{fairness}
-criterions, such as dominant resource fairness (DRF) \cite{drf}, which benefit from their
+criterion, such as dominant resource fairness (DRF) \cite{drf}, which benefit from their
 simplicity, efficiency, and non-manipulability. Unfortunately, when applied in
 realistic settings --- when dealing with inhomogeneous resources, time-varying
 demands or deadlines, requirements for data locality, etc.---typical implementations
@@ -324,7 +324,7 @@ been considered are:
     policy, and providing incentives to frameworks to strategically decline a
     resource in order to receive a better allocation in the future.
   \item Understand the entire optimization problem faced by each problem, and
-    make explicit judgments of the relative value of $R$ and $R'$ within the
+    make explicit judgements of the relative value of $R$ and $R'$ within the
     scheduler. This violates the spirit of Mesos, and in general appears to be
     difficult given the complexity and scale of the cluster scheduling problem.
 \end{enumerate}
@@ -354,8 +354,8 @@ in strategic behavior (indeed, they are intended to engage in strategic behavior
 and the results need not be efficient.
 
 There have been many ad hoc proposals to address some of these difficulties.
-For example, Jockey is a system which accomodates deadlines in a fair-share
-scheduler by increasing the allotted shares for users which are appraoching
+For example, Jockey is a system which accommodates deadlines in a fair-share
+scheduler by increasing the allotted shares for users which are approaching
 a deadline.
 However, these techniques tend to violate the theoretical guarantees
 of the underlying systems more starkly, and to require extensive tuning
@@ -631,12 +631,12 @@ two-level representation:
 \end{itemize}
 While this obviously cannot represent all possible $\mathcal{B}$, it still
 allows enough flexibility to cover all of the applications we allude to
-in the paper---to handle dealdines, inhomogeneous resources, fragmentation,
+in the paper---to handle deadlines, inhomogeneous resources, fragmentation,
 tasks of differing priorities, and so on.
 
 \subsection{Ascending-bid clock auction}
 Once the master has collected a set of bids, it uses an ascending-bid clock
-auction to determine which of the bids to fulfill, and how much it should charge
+auction to determine which of the bids to fulfil, and how much it should charge
 for each of the tasks which win the auction. The auction consists of a number of
 rounds which continue until no changes occur in the final round. To avoid the
 need for communication between the master and the frameworks after each round,
@@ -699,7 +699,7 @@ of the cluster), since any framework which became richer
 than the others would begin winning auctions.
 \vspace{-5mm}
 \paragraph{Adjusting bids} To modify the 
-default policy to accomodate inhomogeneous resources,
+default policy to accommodate inhomogeneous resources,
 times, or tasks, we can simply modify framework's
 bids to adjust for the desirability of the resource being
 purchased or the importance of the purpose they are being used for.
@@ -717,7 +717,7 @@ is the possibility of \emph{hoarding}, in which one framework
 declines to use any resources during a certain period so that it can amass
 a much larger budget than any other resources.
 It can then spend this budget at a future point in order to monopolize the cluster,
-which may have undesirable conseuqences for frameworks that need uninterrupted service.
+which may have undesirable consequences for frameworks that need uninterrupted service.
 
 This can be prevented by using an appropriate bidding strategy
 (in general we recommend modifying bidding strategies to achieve a desired
@@ -863,7 +863,7 @@ this property also holds at the end of the round.
 In this step we rely on our assumption that user A's valuations for their own holdings do not change after the auction is announced 
 (otherwise it may be possible for user A to become envious in between rounds as more information is revealed, rather than during a round of the auction). 
 We note in passing that similar assumptions are required to prove that DRF is envy-free in the dynamic setting,
-even in a simple rather than realistic enviornment.
+even in a simple rather than realistic environment.
 \qed
 \end{pproof}
 %XXX insert discussion of strategy-proofness of DRF, which mentions (1) the fact that you need to ignore complexities of items / trust users to incorporate them into their bids, (2) the fact that you need to ignore the consequences of your behavior for other participants
@@ -999,14 +999,13 @@ Hence, in the case of inhomogeneous performing resources, the market-based mecha
 There are a number of related works in the same or similar domains.
 
 \subsection{Grid computing}
-Job schedulers like TORQUE \cite{torque}, Condor \cite{condor}, and LSF
-\cite{lsf} have long been used for solving the problem of resource allocation
+Job schedulers like TORQUE \cite{torque} or Condor \cite{condor} have long been used for solving the problem of resource allocation
 within a high-performance-computing (HPC) or grid-computing environment.
 For the most part, they do not use a two-level scheduling model like we do but
 instead operate as a queue for predefined jobs which are run as resources become
-available. Machines and job requirements also tend to show more homogeniety
+available. Machines and job requirements also tend to show more homogeneity
 within such environments (for example, the ratio between CPU, memory, and disk),
-so sthe amount of optimization possible with pricing is lower.
+so the amount of optimization possible with pricing is lower.
 
 \subsection{Cloud and datacenter computing}
 Our work depends heavily on Mesos~\cite{mesos}, as we use its model of
@@ -1023,7 +1022,13 @@ of demands and have them all interact nicely with each other without needing
 specialized logic to keep track of each one explicitly.
 
 \subsection{Resource allocation}
-Dominant resource fairness~\cite{drf} is an allocation policy whereby the user with the smallest dominant share is next allocated resources. The user's dominant share in a multi-resource environment is the largest share the user possesses of any of the cluster's various resources.
+Dominant resource fairness~\cite{drf} is an allocation policy whereby the user
+with the smallest dominant share is next allocated resources. The user's
+dominant share in a multi-resource environment is the largest share the user
+possesses of any of the cluster's various resources. The Mesos cluster manager
+relies on the DRF policy to decide which framework to next offer resources.
+Section \ref{sec:theory} contains a more theoretical discussion of DRF and 
+its benefits compared to a market-based mechanism.
 
 \subsection{Economics/pricing in computer systems}
 Lottery scheduling
@@ -1052,7 +1057,7 @@ resources equitably among a set of people. Our problem differs somewhat from
 fair division in that we don't seek to allocate every bit of the cluster to the
 set of users. We assume that a user might be happy to have received nothing if
 their value of gaining resources was too low compared to the others, since the
-user keeps some amont of money unspent as a a result.
+user keeps some amount of money unspent as a a result.
 
 One of the economic fair division solutions is CEEI~\cite{moulin2004fair}, or
 competitive equilibrium from equal incomes. This mechanism emulates a market
@@ -1060,12 +1065,12 @@ where participants initially receive an equal amount of resources and trade some
 of them until each has the desired amount of resources. CEEI's use of a market
 differs significantly from ours in that we do not use it only as a vehicle for
 achieving a fair allocation, but also for frameworks to express their
-preferences in a fine-grianed way using prices and willingness to pay.
+preferences in a fine-grained way using prices and willingness to pay.
 
 \section{Future Work}
 \label{sec:future}
 
-In our evaluation, we showed through simulation the benefits of our protocol in the specific case of inhomogenous performing resources. However, there are a number of other user constraints that should theoretically be better expressed using prices than existing methods. Future work would be to experimentally evaluate such cases. A few such user constraints include deadlines and varying latency sensitivities, differential service guarantees, deadweight losses of evictions, costs of fragmenting jobs, various execution types (e.g. speculative vs essential execution), and co-location of data or other important resources.
+In our evaluation, we showed through simulation the benefits of our protocol in the specific case of inhomogeneous performing resources. However, there are a number of other user constraints that should theoretically be better expressed using prices than existing methods. Future work would be to experimentally evaluate such cases. A few such user constraints include deadlines and varying latency sensitivities, differential service guarantees, deadweight losses of evictions, costs of fragmenting jobs, various execution types (e.g. speculative vs essential execution), and co-location of data or other important resources.
 
 \section{Conclusion}
 \label{sec:conclusion}
