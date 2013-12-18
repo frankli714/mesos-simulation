@@ -173,36 +173,37 @@ in a setting with inhomogeneous resources.
 \section{Introduction}
 \label{sec:intro}
 
-Large-scale computing clusters offer potential for greater efficiency through
+Large-scale computing clusters offer the potential for greater efficiency through
 pooling of computational resources, but must contend with the problem of
 allocating these resources to users with competitive and potentially
 incompatible demands. Such conflicts are typically arbitrated by some \emph{fairness}
 criterions, such as dominant resource fairness (DRF) \cite{drf}, which benefit from their
 simplicity, efficiency, and non-manipulability. Unfortunately, when applied in
 realistic settings --- when dealing with inhomogeneous resources, time-varying
-demands, requirements for data locality, etc.---these systems cease to be either
+demands or deadlines, requirements for data locality, etc.---typical implementations
+of these systems cease to be either
 efficient or non-manipulable.
 
-We propose using prices as an abstraction for subsystems to communicate their
-constraints, and describe a protocol based on auctions for allocating resources
-in a cluster. Our protocol has the key advantage that it can continue to meet
+We propose allowing users of the cluster to bid on resources
+as a method of expressing their constraints and priorities without exposing
+those constraints directly to the scheduler. We imagine that the users
+of the cluster will often themselves be programs running on the cluster
+and making choices about bidding programmatically, and stress that we are
+investigating the suitability of this approach as a communication abstraction
+between programs rather than as a user interface to expose to the end-users
+of a computing cluster.
+
+Our protocol has the key advantage that it can continue to meet
 efficiency guarantees in realistic environments where preferences are
-inhomogeneous across resources and time, and in the presence of adversarial
-manipulation. Moreover, we propose prices as a general mechanism for enforcing a
-clean abstraction between different components of a system, allowing one
-component to make choices intelligently based on constraints elsewhere in the
-system even when it was not designed with knowledge of those constraints.
+inhomogeneous across resources and time.
 
 We incorporate these ideas into the Mesos cluster manager, along with microeconomic
 ``agents'' which allow traditional Mesos clients to interact seamlessly with our
-modified implementation. We show through simulations that our market-based mechanism has performance characteristics similar or better compared to existing approaches (in particular, DRF) even when users do not
-provide any meaningful price information. Moreover, we show that when accurate
-economic data is available our system is able to achieve substantial
-performance improvements over DRF. Finally, we discuss a number of examples where this
-functionality may be useful even in applications where the end-users of the
-system don't have to think about economics at all, and instead prices are
-generated algorithmically as a principled way to accommodate constraints that
-are currently managed in an ad hoc way.
+modified implementation. We show through simulations that our market-based mechanism 
+achieves comparable performance with the existing implementation of Mesos.
+We then give an example of modifying the bidding behavior of frameworks
+in order to express varying preferences for particular machines in the cluster,
+and show that this modification is able to improve the performance of Mesos.
 
 The rest of the paper is organized as follows.
 Section \ref{sec:overview} provides a brief overview of Mesos and how it
@@ -235,8 +236,6 @@ design and the existing DRF approach.
 Related works are discussed in Section \ref{sec:related}.
 We elaborate on directions for further investigation in Section \ref{sec:future}, and make concluding remarks in Section \ref{sec:conclusion}.
 
-
-
 \section{Overview}
 \label{sec:overview}
 
@@ -268,13 +267,11 @@ simple fairness criterion (dominant resource fairness) to decide which framework
 The abstraction of resource offers allows Mesos to serve frameworks without
 understanding the constraints they face. By making offers to those frameworks
 which are currently using the least resources, Mesos attempts to ensure that all
-frameworks receive a fair share of the cluster. Because of the simplicity of
-this protocol, it appears to be immune to manipulation (and indeed it has been
-shown to be immune to manipulation in theory).
+frameworks receive a fair share of the cluster. 
 
 Unfortunately, while the fairness policy used by Mesos is efficient and
 strategy-proof in a simple one-shot game with homogeneous resources, it is
-neither efficient nor strategy-proof in this setting. 
+neither efficient nor strategy-proof in this more realistic setting. 
 %For example, a framework
 %using Mesos which prefers to run tasks on machines that already have relevant
 %data is forced to engage in strategic behavior: given a resource which it
@@ -285,7 +282,7 @@ neither efficient nor strategy-proof in this setting.
 %despite best-efforts of the clients, and in complex examples there is little to
 %believe the results are efficient. 
 Moreover, the
-current design of Mesos is essentially unsuitable for even mildly hostile
+current design of Mesos is essentially unsuitable for hostile
 environments. Section \ref{sec:theory} provides detailed theoretical analyses.
 %; a framework which can use less than its ``fair share'' of the
 %resources at any point in time has no incentive to do so, and indeed has every
@@ -524,38 +521,7 @@ been considered are:
 %    reifying those tradeoffs is only likely to help us improve the situation.
 %\end{enumerate}
 
-\subsection{Why microeconomic methods?}
-The basic paradigm we propose is conceptually simple, though is associated with
-many practical difficulties. At each stage where we need to make a decision, we
-propose:
-\vspace{-5mm}
-\begin{enumerate}
-\itemsep0em
-  \item Estimate the value of different outcomes.
-  \item Estimate the outcomes that will result from different decisions.
-  \item Compute the value of different decisions.
-\end{enumerate}
-\vspace{-5mm}  
-This paradigm has the virtue of being modular in a number of important respects:
-\vspace{-5mm}
-\begin{enumerate}
-\itemsep0em
-  \item The notion of value provides a unifying framework for different
-    components to communicate with each other; if I am one component providing a
-    service to some client, and I know how valuable different outcomes are to my
-    client, I know everything I need to know; my policy does not need to depend
-    on anything else about the client.
-  \item I can improve and reason about the prediction of outcomes and the
-    estimates of value separately. 
-  \item It is often possible to compute the value straightforwardly, given the
-    values stated  by my clients. For example, if I am scheduling a MapReduce
-    instance and know that a 1 second delay costs my client 1 unit, then I can
-    estimate the cost of a 1 second delay in one of my tasks simply by
-    estimating (or using a crude heuristic for) the probability that this task
-    is on the critical path.
-\end{enumerate}
-
-\section{Market-based Mechanism Design}
+\section{Our auction}
 
 This section describes the details of our market-based mechanism design.
 
@@ -584,6 +550,14 @@ The master keeps track of a budget for each framework: its current balance and
 the amount of income it receives per second. It automatically adjusts a
 framework's balance when it performs actions which require payment. For simplicity,
 we allow a framework to incur a negative income and also a small temporary negative balance, although we do not accept bids from a framework with a negative balance.
+
+Depending on the setting, the budgets of the frameworks may be entirely internal to the cluster
+using an idiosyncratic currency,
+or the budgets might be shared between several different components of a larger system
+(or frameworks may even draw from real budgets of organizations, individuals, or teams,
+which have significance outside of the cluster).
+The auction we describe is applicable in any of these environments,
+though our evaluations all rely exclusively on a closed economy with an idiosyncratic currency.
 
 \subsection{Resource offers and bidding}
 Periodically, when there are resources currently available, the master will
@@ -909,21 +883,21 @@ The simulations were run on synthetic workloads generated from the statistical d
 \subsection{Performance Without Pricing\\}
 
 \begin{figure}
-%\includegraphics[width=0.5\textwidth]{images/util_high.png}
+\includegraphics[width=0.5\textwidth]{images/util_high.png}
 \caption{Utilization achieved by DRF and our policy on a simulated 25-node CPU-bound cluster.  DRF's average utilization is 98\% average utilization while ours is 99\%.}
 \label{img:util_high}
 \end{figure}
 
 \begin{figure}
 
-%\includegraphics[width=0.5\textwidth]{images/util_low.png}
+\includegraphics[width=0.5\textwidth]{images/util_low.png}
 \caption{Behavior of DRF and our policy on a simulated 100-node cluster. Both policies have average utilization of 44\%.}
 \label{img:util_low}
 \end{figure}
 
 \begin{figure}
 
-%\includegraphics[width=0.5\textwidth]{images/relative_completion_times.png}
+\includegraphics[width=0.5\textwidth]{images/relative_completion_times.png}
 \caption{Relative average job completion times between DRF and auctions for all frameworks.}
 \label{img:relative}
 \end{figure}
@@ -956,7 +930,7 @@ Hence, in the case of inhomogeneous performing resources, the market-based mecha
 
 
 \begin{figure}
-%\includegraphics[width=0.5\textwidth]{images/inhomo_times.png}
+\includegraphics[width=0.5\textwidth]{images/inhomo_times.png}
 \caption{The results of simulating Mesos on a cluster of 64 machines, of which 16 have access to a special resource. DRF schedules 30\% of tasks on the optimal machine when frameworks prioritize appropriately, while a simple market-based policy schedules 60\%.}
 \label{img:inhomo}
 \end{figure}
