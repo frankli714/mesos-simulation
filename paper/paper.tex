@@ -121,7 +121,7 @@
 
 \maketitle
 \begin{abstract}
-
+Current cluster managers arbitrate complex and possibly conflicting user requirements through a fairness criterion such as dominant resource fairness. However, in realistic settings, these approaches fail to be both efficient and non-manipulable. In this paper, we propose using prices as a method of expressing user constraints, and describe a market-based mechanism for allocating resources in a cluster. We demonstrate that our approach achieves desirable theoretical properties, such as envy-freeness and compatibility with sharing incentives. We incorporate our mechanism into the design of the Mesos cluster scheduler, and show through simulations that our modifications result in comparable or better performance characteristics when compared with the existing Mesos framework. In particular, our scheme can match Mesos's dominant resource fairness's performance when even no economic information is provided. When economic information is provided, our mechanism provides performance improvements.
 \end{abstract}
 
 % A category with the (minimum) three required fields
@@ -139,10 +139,10 @@
 Large-scale computing clusters offer potential for greater efficiency through
 pooling of computational resources, but must contend with the problem of
 allocating these resources to users with competitive and potentially
-incompatible demands. Such conflicts are typically arbitrated \emph{fairness}
-criterions, such as dominant resource fairness (DRF), which benefit from their
+incompatible demands. Such conflicts are typically arbitrated by some \emph{fairness}
+criterions, such as dominant resource fairness (DRF) \cite{drf}, which benefit from their
 simplicity, efficiency, and non-manipulability. Unfortunately, when applied in
-realistic settings---when dealing with inhomogeneous resources, time-varying
+realistic settings --- when dealing with inhomogeneous resources, time-varying
 demands, requirements for data locality, etc.---these systems cease to be either
 efficient or non-manipulable.
 
@@ -156,50 +156,47 @@ clean abstraction between different components of a system, allowing one
 component to make choices intelligently based on constraints elsewhere in the
 system even when it was not designed with knowledge of those constraints.
 
-We implement these ideas in the Mesos cluster manager, along with microeconomic
+We incorporate these ideas into the Mesos cluster manager, along with microeconomic
 ``agents'' which allow traditional Mesos clients to interact seamlessly with our
-modified implementation. We show that the computational and communication
-overhead proposed by our system is manageable and that its performance compares
-favorably to existing approaches (particularly DRF) even when users do not
+modified implementation. We show through simulations that our market-based mechanism has performance characteristics similar or better compared to existing approaches (in particular, DRF) even when users do not
 provide any meaningful price information. Moreover, we show that when accurate
-economic data is available our system is able to achieve substantially higher
-social welfare than DRF. Finally, we discuss a number of examples where this
+economic data is available our system is able to achieve substantial
+performance improvements over DRF. Finally, we discuss a number of examples where this
 functionality may be useful even in applications where the end-users of the
 system don't have to think about economics at all, and instead prices are
 generated algorithmically as a principled way to accommodate constraints that
 are currently managed in an ad hoc way.
 
-\subsection{Guide to the paper}
-
-In section \ref{sec:overview}, we provide a brief overview of Mesos and how it
+The rest of the paper is organized as follows.
+Section \ref{sec:overview} provides a brief overview of Mesos and how it
 could incorporate microeconomic mechanisms.
-
-In section \ref{sec:case}, we make the theoretical case for using microeconomic methods. We
-provide a litany of examples in which existing approaches, and in particular
-DRF, fail to be either efficient or strategy-proof, and describe examples of
-strategic behavior in Mesos. We discuss a number of examples in which economic
-data generated \emph{within} the system could be useful, and compare this approach to a
-number of ad hoc approaches currently pursued to solve similar problems.
-
-In section \ref{sec:design}, we describe our protocol and the most important design decisions
+%
+%In section \ref{sec:case}, we make the theoretical case for using microeconomic methods. We
+%provide a litany of examples in which existing approaches, and in particular
+%DRF, fail to be either efficient or strategy-proof, and describe examples of
+%strategic behavior in Mesos. We discuss a number of examples in which economic
+%data generated \emph{within} the system could be useful, and compare this approach to a
+%number of ad hoc approaches currently pursued to solve similar problems.
+%
+In Section \ref{sec:design}, we describe our protocol and the most important design decisions
 we made. In particular, we describe the mechanisms we used to ensure that our
 protocol remains backwards-compatible, and can be applied without any change to
 the clients' code.
-
-In section \ref{sec:eval}, we report on simulated comparisons between our
-design and existing approaches: (a) we evaluate the computational and communication
-overhead of our approach and show that it is manageable, (b) we compare our
-system in ``backwards-compatibility mode,'' without any economic information
-whatsoever, to DRF, and show that it performs comparably whether judged by
-utilization or fairness, (c) we examine a number of cases in which economic
-information is available; we show that in general our algorithms achieve higher
-social efficiency than DRF, and provide natural examples in which DRF fails to
-be Pareto efficient.
-
-In section \ref{sec:future}, we elaborate on directions for further
-investigation.
-
-In section \ref{sec:conclusion}, we making closing remarks.
+%
+We provide a theoretical analysis of the shortcomings of DRF and the benefits of an economic-based scheduler in Section \ref{sec:theory}.
+%
+In Section \ref{sec:eval}, we report on simulated performance valuations, comparing our
+design and the existing DRF approach.
+%: (a) we evaluate the computational and communication
+%overhead of our approach and show that it is manageable, (b) we compare our
+%system in ``backwards-compatibility mode,'' without any economic information
+%whatsoever, to DRF, and show that it performs comparably whether judged by
+%utilization or fairness, (c) we examine a number of cases in which economic
+%information is available; we show that in general our algorithms achieve higher
+%social efficiency than DRF, and provide natural examples in which DRF fails to
+%be Pareto efficient.
+Related works are discussed in Section \ref{sec:related}.
+We elaborate on directions for further investigation in Section \ref{sec:future}, and make concluding remarks in Section \ref{sec:conclusion}.
 
 
 
@@ -229,7 +226,7 @@ frameworks themselves to decide which resources they will use and which they
 will pass on. Frameworks are free to make these decisions on the basis of the
 detailed specifications of the tasks they want done (for example, to accept
 machines that improve data locality), but Mesos itself makes use of a very
-simple fairness criterion to decide which frameworks receive offers.
+simple fairness criterion (dominant resource fairness) to decide which frameworks receive offers.
 
 The abstraction of resource offers allows Mesos to serve frameworks without
 understanding the constraints they face. By making offers to those frameworks
@@ -240,22 +237,25 @@ shown to be immune to manipulation in theory).
 
 Unfortunately, while the fairness policy used by Mesos is efficient and
 strategy-proof in a simple one-shot game with homogeneous resources, it is
-neither efficient nor strategy-proof in this setting. For example, a framework
-using Mesos which prefers to run tasks on machines that already have relevant
-data is forced to engage in strategic behavior: given a resource which it
-\emph{could} use now, should it take the resource or decline it, so that it
-might receive a better offer in the future? Solutions to this problem rely on
-simple heuristics which require tuning based on the parameters of the system;
-there are simple examples where the resulting allocations are not efficient
-despite best-efforts of the clients, and in complex examples there is little to
-believe the results are efficient. Moreover, despite being ``strategy-proof'' the
+neither efficient nor strategy-proof in this setting. 
+%For example, a framework
+%using Mesos which prefers to run tasks on machines that already have relevant
+%data is forced to engage in strategic behavior: given a resource which it
+%\emph{could} use now, should it take the resource or decline it, so that it
+%might receive a better offer in the future? Solutions to this problem rely on
+%simple heuristics which require tuning based on the parameters of the system;
+%there are simple examples where the resulting allocations are not efficient
+%despite best-efforts of the clients, and in complex examples there is little to
+%believe the results are efficient. 
+Moreover, the
 current design of Mesos is essentially unsuitable for even mildly hostile
-environments; a framework which can use less than its ``fair share'' of the
-resources at any point in time has no incentive to do so, and indeed has every
-incentive to exploit all resources it can be allocated even if they are being
-used arbitrarily inefficiently (and there is always \emph{something} to do with
-idle resources, if only perform proof-of-work in exchange for small amounts of
-money).
+environments. Section \ref{sec:theory} provides detailed theoretical analyses.
+%; a framework which can use less than its ``fair share'' of the
+%resources at any point in time has no incentive to do so, and indeed has every
+%incentive to exploit all resources it can be allocated even if they are being
+%used arbitrarily inefficiently (and there is always \emph{something} to do with
+%idle resources, if only perform proof-of-work in exchange for small amounts of
+%money).
 
 \subsection{Microeconomic methods}
 In this paper we confront the challenge of modifying Mesos to provide more
@@ -277,7 +277,9 @@ a different time). Our proposal is to have each program articulate the value of
 resource $R$ (compared to the benchmark of not receiving resource $R$, and then
 contending for resource $R'$ at a later date). The primary alternatives that have
 been considered are:
+\vspace{-4mm}
 \begin{enumerate}
+\itemsep0em
   \item Ignore the relative value of resource $R$ and $R'$, and make allocation
     decisions entirely on the basis of fairness considerations (for example by
     ensuring that each framework has an equal number of every resource). This is
@@ -292,211 +294,215 @@ been considered are:
 \end{enumerate}
 
 
-\section{The case for microeconomic scheduling}
-\label{sec:case}
-
-\subsection{Scheduling is hard}
-Consider the following typical situations within a cluster:
-\begin{enumerate}
-  \item Some clients have regular throughput and flexible deadlines, while some
-    clients have hard real-time constraints and variable traffic.
-  \item Different tasks make use of different characteristics of hardware on
-    machines in the cluster, for example high ratios of RAM to CPU on a
-    particular machine, or GPUs or other hardware that is available on only
-    certain machines.
-  \item Tasks require data which is located on disk or even in memory somewhere
-    in the cluster, and co-locating the tasks with the data improves
-    performance.
-\end{enumerate}
-In each of these examples, clients of the cluster have preferences over
-allocations which are difficult to precisely express. It would be possible but
-difficult to cover just these cases, but the reader can doubtless generate many
-similar cases, and as the environment changes the nature of these constraints is
-likely to continue to change as well. 
-
-Mesos is able to schedule even in the face of such constraints, by making
-resource offers to clients and allowing them to accept or reject resources
-according to whether they satisfy their constraints. But this is approach offers
-little granularity to clients, forces them to adopt brittle heuristics, and
-moreover compromises the guarantees of the fairness policies Mesos uses to
-decide how to make resource offers.
-
-Mesos uses a fair-share scheduler based on dominant resource fairness. This
-means that the client to receive the next resource offer is the one who is
-currently using the minimum share of the resource they are using the \emph{most}
-of (relative to the total supply in the cluster). A weighted version can be
-defined analogously. 
-
-Consider a client of Mesos who is interested in receiving a machine with
-characteristic X, because it would allow their task to run 20\% faster (or
-perhaps because it would allow them to run a task which is slightly higher
-priority than the task they would run on a machine without characteristic X).
-Given an offer for a machine without characteristic X, what should this client
-do? The formal guarantee of ``strategy-proofness'' suggests the client would take
-it; indeed, to do otherwise would explicitly be strategic. But in fact, we hope
-that clients will yield a highly-contended resource when they can use an
-alternative, or will yield a typical resource if they could make particularly
-good use of an alternative. And indeed this is done by many clients to Mesos.
-
-This example clearly shows that in this case, the mechanism provided by Mesos is
-\emph{not} strategy-proof. Worse, it's not Pareto efficient if people are
-honest, and need not be Pareto efficient if clients behave optimally. Similar
-things happen in the other examples we mentioned, or in most of the similar
-alternatives which we can envision:
-\begin{enumerate}
-  \item When one client has a constant stream of work and another has varying
-    traffic, Mesos encourages both to constantly use up their allocated share of
-    the network (unless they have nothing to do with the space). But an
-    efficient allocation would give the client with varying workload more
-    resources when it has more work. 
-  \item Mesos gives a valuable resource to whatever client happens to be using
-    the fewest resources when that machine becomes available. This encourages
-    clients to inefficiently decline resources which they could use, so that
-    they will be offered better resources in the future. This may decrease
-    utilization, and moreover it provides little guarantee that a valuable
-    resource will be used by the framework which most values it---instead it will
-    be used by whichever framework uses the least resources.
-  \item If a client is waiting for a machine that is co-located with some data
-    that their task needs, then Mesos encourages them to guess how likely that
-    resource is to be freed up soon, and to decline new resources if this
-    probability is high enough. This is actually much more efficient behavior
-    than if the client behaved honestly by accepting whatever resources it could
-    use, but it provides some indication that the ``guarantees'' of DRF are not
-    directly applicable to the situations Mesos is intended to cover.
-  \end{enumerate}
-
-These shortcomings are not specific to DRF; these will be issues for any
-scheduler which treats the scheduling problem as a one-shot game with
-homogeneous resources when in fact it is more complicated. Theoretical
-guarantees are not likely to be meaningful in this regime. To evaluate proposed
-solutions, we suggest a combination of:
-\begin{enumerate}
-  \item Theoretical analyses which apply in realistic contexts
-  \item Experimental evidence for effectiveness
-\end{enumerate}
-We provide strong evidence that our proposal is at least not inferior to DRF on
-either of these grounds, and we provide some evidence that even our highly
-preliminary implementation is already superior.
-
-\subsection{Existing approaches}
-Many difficulties with scheduling have been isolated and addressed, typically by
-ad hoc mechanisms which require tuning and don't necessarily play nicely with
-each other. In order to contrast these approaches with microeconomic methods, we
-list some examples of solutions to these problems here. Note that we will not be
-able to solve all of these problems within our proposal---that would be an
-extraordinarily ambitious project. We list these examples to give some sense of
-how a microeconomic framework could be used to replace ad hoc approaches,
-improving robustness and ease-of-design. In contrast, our goal in this paper is
-simply to show that microeconomic approaches really are a feasible option, and
-that in the ``base case'' they are as good as existing solutions.
-
-\paragraph{Deadlines} DRF makes no provision for coping with deadlines, which
-are often of considerable practical importance. The Jockey system enforces
-deadlines in the context of a fair-share scheduler, by increasing or decreasing
-a task's share of the cluster depending on the importance of their deadline.
-While this is a significant improvement over the alternative, we find it a very
-crude solution to the underlying problem:
-\begin{enumerate}
-  \item Jockey has no dependence on how important resources currently are for
-    the cluster, it just assigns a job as many resources as are needed to meet
-    its deadline.
-  \item It is not clear how to generalize Jockey to systems where multiple
-    simultaneous tasks have deadlines, or where meeting deadlines must be
-    balanced against any other consideration.
-  \item Jockey changes the allocations of tasks depending on their performance,
-    and will typically invalidate any guarantees provided by the original
-    scheduler.
-  \item Jockey does not have any principled approach for reasoning about the
-    error bars on a task's completion time (instead this is determined by a
-    fine-tuned parameter of the system).
-  \item Jockey cannot reason about multiple deadlines of varying importance, but
-    instead gives a job as many resources as it needs to finish as soon as it
-    would be useful.
-\end{enumerate}
-
-The microeconomic alternative makes use of Jockey's core component, an estimate
-for the time required to complete a task, but uses a different control system.
-In the microeconomic framework a deadline is associated with an economic value
-(that might be algorithmically generated based on the priority of the task)
-which can be compared to the economic value of other activity in the cluster.
-The importance of resources to the task is then given by the effect those
-resources will have on the task's probability of completing by deadline, and
-this can be compared to the importance of those resources to other processes
-running on the cluster. Resources can then be shifted until these two values are
-equal.
-
-\paragraph{Priority and preemption} In existing systems priority is typically
-implemented as an absolute ordering; a task of high priority can preempt a task
-of lower priority and always wins in contention for resources. This approach is
-conceptually problematic because there are always mechanisms for a
-higher-priority process to improve performance by increasing its resource usage
-(for example speculative execution, or increased duplication of straggling
-processes) and an infinite tradeoff between the performance of high-priority and
-low-priority processes is undesirable. In practice, this approach relies on
-``reasonable'' behavior by high-priority processes, which makes reasoning about
-systems difficult. Such systems are also brittle and prone to priority
-inversions, in which low-priority processes can be inadvertently elevated to
-high-priority.
-
-Another approach is to assign tasks of different types appropriate shares of a
-cluster. But this approach also fails to capture what we really care about. For
-example, we would like high priority processes to expand their use of the
-cluster when they need it. 
-
-These problems are considerably exacerbated when we consider preemption,
-especially if preemption is costly for the preempted process: when should a low
-priority process be allowed to finish, and when should it be preempted?
-
-Microeconomic methods allow for a principled answer to these questions: by
-describing ``high priority'' tasks by \emph{how much more} we care about them
-finishing faster, we can make principled tradeoffs. 
-
-\paragraph{Data locality} Many tasks run more efficiently when they are
-co-located with data. At the moment, this is typically achieved either by
-explicit optimization (requiring the scheduler to be aware of detailed
-characteristics of the tasks its scheduling) or by heuristics, for example
-blocking for 5 seconds before accepting an offered resource which is not local
-to data. Again, microeconomic methods provide a principled approach which is
-compatible with a lightweight interface between client and scheduler: a client
-can estimate how much more slowly a task will run on a machine without the data,
-can estimate how likely a machine with the data is to become free, and can
-thereby estimate how much of a discount they would need to be offered before
-they would accept a machine without their data.
-
-\subsection{Philosophical motivation}
-Our primary motivation is strongly to maximize efficiency, rather than other
-measures such as utilization, fairness, or strategy-proofness. We view other
-characteristics as necessary insofar as they help achieve efficiency. 
-
-In some sense this is problematic, because efficiency is typically unmeasurable.
-But there are a number of pragmatically relevant implications:
-\begin{enumerate}
-  \item Pareto efficiency is a minimal standard for acceptability. To the extent
-    that existing approaches fail to be Pareto efficient, this is much more
-    damning than a possible failure to be strategy-proof (as long as the
-    possibility of manipulation does not in itself destroy our efficiency
-    guarantee!)
-  \item Even where true prices are unavailable, we think in terms of the real,
-    unobserved value of an outcome (such as finishing a computation or meeting a
-    deadline). Many existing schemes need to implicitly make judgments about
-    these values (because they are making tradeoffs between different outcomes).
-    So we don't treat the difficulty of assigning values to outcomes as a
-    deal-breaker; to the extent that we already need to make implicit tradeoffs,
-    reifying those tradeoffs is only likely to help us improve the situation.
-\end{enumerate}
+%\section{The case for microeconomic scheduling}
+%\label{sec:case}
+%
+%\subsection{Scheduling is hard}
+%Consider the following typical situations within a cluster:
+%\begin{enumerate}
+%  \item Some clients have regular throughput and flexible deadlines, while some
+%    clients have hard real-time constraints and variable traffic.
+%  \item Different tasks make use of different characteristics of hardware on
+%    machines in the cluster, for example high ratios of RAM to CPU on a
+%    particular machine, or GPUs or other hardware that is available on only
+%    certain machines.
+%  \item Tasks require data which is located on disk or even in memory somewhere
+%    in the cluster, and co-locating the tasks with the data improves
+%    performance.
+%\end{enumerate}
+%In each of these examples, clients of the cluster have preferences over
+%allocations which are difficult to precisely express. It would be possible but
+%difficult to cover just these cases, but the reader can doubtless generate many
+%similar cases, and as the environment changes the nature of these constraints is
+%likely to continue to change as well. 
+%
+%Mesos is able to schedule even in the face of such constraints, by making
+%resource offers to clients and allowing them to accept or reject resources
+%according to whether they satisfy their constraints. But this is approach offers
+%little granularity to clients, forces them to adopt brittle heuristics, and
+%moreover compromises the guarantees of the fairness policies Mesos uses to
+%decide how to make resource offers.
+%
+%Mesos uses a fair-share scheduler based on dominant resource fairness. This
+%means that the client to receive the next resource offer is the one who is
+%currently using the minimum share of the resource they are using the \emph{most}
+%of (relative to the total supply in the cluster). A weighted version can be
+%defined analogously. 
+%
+%Consider a client of Mesos who is interested in receiving a machine with
+%characteristic X, because it would allow their task to run 20\% faster (or
+%perhaps because it would allow them to run a task which is slightly higher
+%priority than the task they would run on a machine without characteristic X).
+%Given an offer for a machine without characteristic X, what should this client
+%do? The formal guarantee of ``strategy-proofness'' suggests the client would take
+%it; indeed, to do otherwise would explicitly be strategic. But in fact, we hope
+%that clients will yield a highly-contended resource when they can use an
+%alternative, or will yield a typical resource if they could make particularly
+%good use of an alternative. And indeed this is done by many clients to Mesos.
+%
+%This example clearly shows that in this case, the mechanism provided by Mesos is
+%\emph{not} strategy-proof. Worse, it's not Pareto efficient if people are
+%honest, and need not be Pareto efficient if clients behave optimally. Similar
+%things happen in the other examples we mentioned, or in most of the similar
+%alternatives which we can envision:
+%\begin{enumerate}
+%  \item When one client has a constant stream of work and another has varying
+%    traffic, Mesos encourages both to constantly use up their allocated share of
+%    the network (unless they have nothing to do with the space). But an
+%    efficient allocation would give the client with varying workload more
+%    resources when it has more work. 
+%  \item Mesos gives a valuable resource to whatever client happens to be using
+%    the fewest resources when that machine becomes available. This encourages
+%    clients to inefficiently decline resources which they could use, so that
+%    they will be offered better resources in the future. This may decrease
+%    utilization, and moreover it provides little guarantee that a valuable
+%    resource will be used by the framework which most values it---instead it will
+%    be used by whichever framework uses the least resources.
+%  \item If a client is waiting for a machine that is co-located with some data
+%    that their task needs, then Mesos encourages them to guess how likely that
+%    resource is to be freed up soon, and to decline new resources if this
+%    probability is high enough. This is actually much more efficient behavior
+%    than if the client behaved honestly by accepting whatever resources it could
+%    use, but it provides some indication that the ``guarantees'' of DRF are not
+%    directly applicable to the situations Mesos is intended to cover.
+%  \end{enumerate}
+%
+%These shortcomings are not specific to DRF; these will be issues for any
+%scheduler which treats the scheduling problem as a one-shot game with
+%homogeneous resources when in fact it is more complicated. Theoretical
+%guarantees are not likely to be meaningful in this regime. To evaluate proposed
+%solutions, we suggest a combination of:
+%\begin{enumerate}
+%  \item Theoretical analyses which apply in realistic contexts
+%  \item Experimental evidence for effectiveness
+%\end{enumerate}
+%We provide strong evidence that our proposal is at least not inferior to DRF on
+%either of these grounds, and we provide some evidence that even our highly
+%preliminary implementation is already superior.
+%
+%\subsection{Existing approaches}
+%Many difficulties with scheduling have been isolated and addressed, typically by
+%ad hoc mechanisms which require tuning and don't necessarily play nicely with
+%each other. In order to contrast these approaches with microeconomic methods, we
+%list some examples of solutions to these problems here. Note that we will not be
+%able to solve all of these problems within our proposal---that would be an
+%extraordinarily ambitious project. We list these examples to give some sense of
+%how a microeconomic framework could be used to replace ad hoc approaches,
+%improving robustness and ease-of-design. In contrast, our goal in this paper is
+%simply to show that microeconomic approaches really are a feasible option, and
+%that in the ``base case'' they are as good as existing solutions.
+%
+%\paragraph{Deadlines} DRF makes no provision for coping with deadlines, which
+%are often of considerable practical importance. The Jockey system enforces
+%deadlines in the context of a fair-share scheduler, by increasing or decreasing
+%a task's share of the cluster depending on the importance of their deadline.
+%While this is a significant improvement over the alternative, we find it a very
+%crude solution to the underlying problem:
+%\begin{enumerate}
+%  \item Jockey has no dependence on how important resources currently are for
+%    the cluster, it just assigns a job as many resources as are needed to meet
+%    its deadline.
+%  \item It is not clear how to generalize Jockey to systems where multiple
+%    simultaneous tasks have deadlines, or where meeting deadlines must be
+%    balanced against any other consideration.
+%  \item Jockey changes the allocations of tasks depending on their performance,
+%    and will typically invalidate any guarantees provided by the original
+%    scheduler.
+%  \item Jockey does not have any principled approach for reasoning about the
+%    error bars on a task's completion time (instead this is determined by a
+%    fine-tuned parameter of the system).
+%  \item Jockey cannot reason about multiple deadlines of varying importance, but
+%    instead gives a job as many resources as it needs to finish as soon as it
+%    would be useful.
+%\end{enumerate}
+%
+%The microeconomic alternative makes use of Jockey's core component, an estimate
+%for the time required to complete a task, but uses a different control system.
+%In the microeconomic framework a deadline is associated with an economic value
+%(that might be algorithmically generated based on the priority of the task)
+%which can be compared to the economic value of other activity in the cluster.
+%The importance of resources to the task is then given by the effect those
+%resources will have on the task's probability of completing by deadline, and
+%this can be compared to the importance of those resources to other processes
+%running on the cluster. Resources can then be shifted until these two values are
+%equal.
+%
+%\paragraph{Priority and preemption} In existing systems priority is typically
+%implemented as an absolute ordering; a task of high priority can preempt a task
+%of lower priority and always wins in contention for resources. This approach is
+%conceptually problematic because there are always mechanisms for a
+%higher-priority process to improve performance by increasing its resource usage
+%(for example speculative execution, or increased duplication of straggling
+%processes) and an infinite tradeoff between the performance of high-priority and
+%low-priority processes is undesirable. In practice, this approach relies on
+%``reasonable'' behavior by high-priority processes, which makes reasoning about
+%systems difficult. Such systems are also brittle and prone to priority
+%inversions, in which low-priority processes can be inadvertently elevated to
+%high-priority.
+%
+%Another approach is to assign tasks of different types appropriate shares of a
+%cluster. But this approach also fails to capture what we really care about. For
+%example, we would like high priority processes to expand their use of the
+%cluster when they need it. 
+%
+%These problems are considerably exacerbated when we consider preemption,
+%especially if preemption is costly for the preempted process: when should a low
+%priority process be allowed to finish, and when should it be preempted?
+%
+%Microeconomic methods allow for a principled answer to these questions: by
+%describing ``high priority'' tasks by \emph{how much more} we care about them
+%finishing faster, we can make principled tradeoffs. 
+%
+%\paragraph{Data locality} Many tasks run more efficiently when they are
+%co-located with data. At the moment, this is typically achieved either by
+%explicit optimization (requiring the scheduler to be aware of detailed
+%characteristics of the tasks its scheduling) or by heuristics, for example
+%blocking for 5 seconds before accepting an offered resource which is not local
+%to data. Again, microeconomic methods provide a principled approach which is
+%compatible with a lightweight interface between client and scheduler: a client
+%can estimate how much more slowly a task will run on a machine without the data,
+%can estimate how likely a machine with the data is to become free, and can
+%thereby estimate how much of a discount they would need to be offered before
+%they would accept a machine without their data.
+%
+%\subsection{Philosophical motivation}
+%Our primary motivation is strongly to maximize efficiency, rather than other
+%measures such as utilization, fairness, or strategy-proofness. We view other
+%characteristics as necessary insofar as they help achieve efficiency. 
+%
+%In some sense this is problematic, because efficiency is typically unmeasurable.
+%But there are a number of pragmatically relevant implications:
+%\begin{enumerate}
+%  \item Pareto efficiency is a minimal standard for acceptability. To the extent
+%    that existing approaches fail to be Pareto efficient, this is much more
+%    damning than a possible failure to be strategy-proof (as long as the
+%    possibility of manipulation does not in itself destroy our efficiency
+%    guarantee!)
+%  \item Even where true prices are unavailable, we think in terms of the real,
+%    unobserved value of an outcome (such as finishing a computation or meeting a
+%    deadline). Many existing schemes need to implicitly make judgments about
+%    these values (because they are making tradeoffs between different outcomes).
+%    So we don't treat the difficulty of assigning values to outcomes as a
+%    deal-breaker; to the extent that we already need to make implicit tradeoffs,
+%    reifying those tradeoffs is only likely to help us improve the situation.
+%\end{enumerate}
 
 \subsection{Why microeconomic methods?}
 The basic paradigm we propose is conceptually simple, though is associated with
 many practical difficulties. At each stage where we need to make a decision, we
 propose:
+\vspace{-5mm}
 \begin{enumerate}
+\itemsep0em
   \item Estimate the value of different outcomes.
   \item Estimate the outcomes that will result from different decisions.
   \item Compute the value of different decisions.
 \end{enumerate}
-    
+\vspace{-5mm}  
 This paradigm has the virtue of being modular in a number of important respects:
+\vspace{-5mm}
 \begin{enumerate}
+\itemsep0em
   \item The notion of value provides a unifying framework for different
     components to communicate with each other; if I am one component providing a
     service to some client, and I know how valuable different outcomes are to my
@@ -513,6 +519,9 @@ This paradigm has the virtue of being modular in a number of important respects:
 \end{enumerate}
 
 \section{Market-based Mechanism Design}
+
+This section describes the details of our market-based mechanism design.
+
 \label{sec:design}
 \subsection{Setting}
 Our mechanism assumes three types of participants: a single \emph{master} for
@@ -615,6 +624,7 @@ exhausted. Also, tasks which require more resources should have a
 correspondingly higher willingness to pay.
 
 \section{Theoretical analysis}
+\label{sec:theory}
 
 \subsection{Drawbacks of non-economic scheduling}
 Most scheduling policies used in practice do not use any economic information: clients request resources, and schedulers allocate those resources. Clients may be assigned priorities and/or budgets which are used by the scheduler to determine how many resources to assign to that client, but requests themselves are an all-or-nothing affair.
@@ -754,6 +764,8 @@ Hence, in the case of inhomogeneous performing resources, the market-based mecha
 
 
 \section{Related Work}
+\label{sec:related}
+
 \subsection{Grid computing}
 Job schedulers like TORQUE \cite{torque}, Condor \cite{condor}, and LSF
 \cite{lsf} have long been used for solving the problem of resource allocation
@@ -779,7 +791,7 @@ of demands and have them all interact nicely with each other without needing
 specialized logic to keep track of each one explicitly.
 
 \subsection{Resource allocation}
-Dominant resource fairness~\cite{drf} 
+Dominant resource fairness~\cite{drf} is an allocation policy whereby the user with the smallest dominant share is next allocated resources. The user's dominant share in a multi-resource environment is the largest share the user possesses of any of the cluster's various resources.
 
 \subsection{Economics/pricing in computer systems}
 Lottery scheduling
@@ -818,12 +830,15 @@ differs significantly from ours in that we do not use it only as a vehicle for
 achieving a fair allocation, but also for frameworks to express their
 preferences in a fine-grianed way using prices and willingness to pay.
 
-\section{Discussion and Future Work}
+\section{Future Work}
 \label{sec:future}
 
+In our evaluation, we showed through simulation the benefits of our protocol in the specific case of inhomogenous performing resources. However, there are a number of other user constraints that should theoretically be better expressed using prices than existing methods. Future work would be to experimentally evaluate such cases. A few such user constraints include deadlines and varying latency sensitivities, differential service guarantees, deadweight losses of evictions, costs of fragmenting jobs, various execution types (e.g. speculative vs essential execution), and co-location of data or other important resources.
 
 \section{Conclusion}
 \label{sec:conclusion}
+
+This paper presented an initial investigation into the possibility of leveraging prices and a market-based mechanism for resource scheduling. We describe a protocol for use in the Mesos cluster scheduler with beneficial theoretical properties. Simulation evaluation shows that our market-based mechanism can perform reasonably in a backwards-compatible mode, where no economic information is provided. When economic data exists, our approach can provide substantial performance benefits.
 
 \section{Acknowledgement}
 
