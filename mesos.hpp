@@ -33,6 +33,8 @@ struct Job : public Indexable {
   double start_time;
   double end_time;
 
+  size_t framework_id;
+
 #if 0
   unordered_set<size_t> tasks;
   // Jobs which have to complete before this job can start.

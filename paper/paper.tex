@@ -25,14 +25,34 @@
 % Gerald Murray ---> murray@hq.acm.org
 %
 % For tracking purposes - this is V3.1SP - APRIL 2009
-
 \documentclass{acm_proc_article-sp}
 
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+
+\newenvironment{pproof}[1][Proof]{\begin{trivlist}
+\item[\hskip \labelsep {\bfseries #1}]}{\end{trivlist}}
+%\newenvironment{definition}[1][Definition]{\begin{trivlist}
+%\item[\hskip \labelsep {\bfseries #1}]}{\end{trivlist}}
+%\newenvironment{example}[1][Example]{\begin{trivlist}
+%\item[\hskip \labelsep {\bfseries #1}]}{\end{trivlist}}
+%\newenvironment{remark}[1][Remark]{\begin{trivlist}
+%\item[\hskip \labelsep {\bfseries #1}]}{\end{trivlist}}
+
+%\newcommand{\qed}{\nobreak \ifvmode \relax \else
+%      \ifdim\lastskip<1.5em \hskip-\lastskip
+%      \hskip1.5em plus0em minus0.5em \fi \nobreak
+%      \vrule height0.75em width0.5em depth0.25em\fi}
+
+\usepackage{amsmath}
 \usepackage{mathtools}
 \usepackage{graphicx}
 \usepackage{amssymb}
 \usepackage{pifont}
 \newcommand{\cmark}{\ding{51}}%
+
 
 \begin{document}
 
@@ -609,10 +629,10 @@ up the price to profitably run the task on the cluster at this time.
 
 \subsection{Bidding policy}
 Within our setting, the framework must associate a willingness to pay with each
-task it wishes to run. We now describe some reasonable ways for the frameworks
-to do so.
+task it wishes to run. 
 
-\paragraph{Default policy} For backwards compatibility, we want to be able to
+\paragraph{Default policy} For backwards compatibility, 
+and as a starting point for designing more complex policies, we want to be able to
 use existing Mesos frameworks which are not aware of prices. For these, we
 define a default bidding policy which assumes that all tasks are equally
 important.
@@ -623,61 +643,207 @@ afford to pay more, at least for a limited amount of time before its balance is
 exhausted. Also, tasks which require more resources should have a
 correspondingly higher willingness to pay.
 
+Formally, each framework calculates the current net present value
+of their accumulated wealth together with their current obligations
+and stream of income, and then bids a price proportional
+to this total. This guarantees that the frameworks will
+maintain roughly equal budgets (and hence use roughly equal shares
+of the cluster), since any framework which became richer
+than the others would begin winning auctions.
+
+\paragraph{Paying more or less} To modify the 
+default policy to accomodate inhomogeneous resources,
+times, or tasks, we can simply modify framework's
+bids to adjust for the desirability of the resource being
+purchased or the importance of the purpose they are being used for.
+
+For example, if a task will take less time when run on a machine
+which already has relevant data loaded into memory,
+a framework can increase its willingness to pay for resources on that machine
+by an amount depending on the anticipated speedup.
+%XXX mention why we don't care about any properties other than those that we mention
+
+\paragraph{Defensive bidding} One negative consequence of using a closed economy,
+in which the frameworks bid using currency which is entirely internal to the cluster,
+%XXX mention this distinction elsewhere, and the fact that we can do either
+is the possibility of \emph{hoarding}, in which one framework
+declines to use any resources during a certain period so that it can amass
+a much larger budget than any other resources.
+It can then spend this budget at a future point in order to monopolize the cluster,
+which may have undesirable conseuqences for frameworks that need uninterrupted service.
+
+This can be prevented by using an appropriate bidding strategy
+(in general we recommend modifying bidding strategies to achieve a desired
+function whenever possible and leaving the scheduler itself as simple as possible).
+A defensive bidder $A$ who receives an income equal to a $p$ fraction
+of the cluster's resources can ensure the following invariant:
+during any window of length $T$, $A$ spends roughly $p$ times the total amount
+spent by all frameworks, and at every point in time $A$'s reserves are roughly equal to $p$
+times the total reserves of all frameworks (where $T$ is an upper bound on how frequently auctions are conducted,
+either the maximum length of a task or the period of time after which the resources used by a task
+will be reauctioned and potentially revoked).
+In fact the second invariant follows from the first, which can be approximately attained
+by simply scaling all bids during an interval of time $T$ to the appropriate level.
+
 \section{Theoretical analysis}
 \label{sec:theory}
 
-\subsection{Drawbacks of non-economic scheduling}
+Theoretical analysis
+Drawbacks of non-economic scheduling
 Most scheduling policies used in practice do not use any economic information: clients request resources, and schedulers allocate those resources. Clients may be assigned priorities and/or budgets which are used by the scheduler to determine how many resources to assign to that client, but requests themselves are an all-or-nothing affair.
 
 These policies can work well when the scheduler is aware of all of the relevant constraints faced by clients. But when constraints are invisible to the scheduler, as is the case in Mesos, this paradigm can become problematic. Approaches like lottery scheduling (though not in fact used in Mesos) can partly get around these problems by ensuring that each client receives a proportional share of every resource type, even if the differences between resources are not known to the scheduler. But these techniques cannot easily ensure that a resource is given to the framework that needs it most.
 
 In this section we prove some theorems that make this difficulty more concrete. Our results illustrate the general theme that the theoretical guarantees of fairness-based schedulers are highly brittle to realistic variations in the model. All of our results are straightforward consequences of well-understood limitations in mechanism design. We feel that these limitations are real and applicable to scheduling problems, and that they show fairly clearly that strong theoretical guarantees like strategy-proofness are not pragmatically desirable. This is in concordance with the dominance of mechanisms which are not strategy-proof in most complex environments. We stress that the results in this section are primarily intended to illustrate the limited applicability of the theoretical analysis of existing schedulers (and hence to excuse the lack of such analysis for our own system) rather than to directly demonstrate practical superiority.
 
-We will use the suggestive term ``realistic conditions" to mean a situation in which any of the following occur (i.e., our negative results apply when any of these occur, and the setting is otherwise the simplest setting of static, homogeneous demands for homogeneous resources):
+We will use the suggestive term “realistic conditions” to mean a situation in which any of the following occur (i.e., our negative results apply when any of these occur, and the setting is otherwise the simplest setting of static, homogeneous demands for homogeneous resources):
 
 Users have time-varying demands and tasks of varying importance.
 Users can apply additional computational resources to speed up a task (e.g. via speculative execution)
 Users face deadlines.
 Different resources are inhomogeneous, and tasks have inhomogeneous sensitivity to characteristics of resources. Either the scheduler does not make decisions on the basis of these inhomogeneities, or different resources are imperfect substitutes.
 
-We say that a system is ``demand-based" if it elicits a demand from each user and makes assignments on the basis of the stated demands. For example, DRF, asset allocation, and CEEI all fall into this class.
+We say that a system is “demand-based” if it elicits a demand from each user and makes assignments on the basis of the stated demands. For example, DRF, asset allocation, and CEEI all fall into this class.
 
-Theorem 1. Any demand-based system which is Pareto efficient under realistic conditions must sometimes assign the entire cluster to a single user, an extreme violation of fairness.
+\begin{theorem}\label{demand-bad}
+Any demand-based system which is Pareto efficient under realistic conditions must sometimes assign the entire cluster to a single user, an extreme violation of fairness.
+\end{theorem}
 
-Proof: We provide the proof for the time-varying demands case. The other arguments are exactly analogous. We give an extremely simple and artificial case, though analogous behavior would be expected in more realistic cases.
+\begin{pproof}
+We provide the proof for the time-varying demands case. The other arguments are exactly analogous. We give an extremely simple and artificial case, though analogous behavior would be expected in more realistic cases.
 
-Suppose that there are two users and that at each time each user has enough tasks to consume all of the clusters' resources. Tasks arrive at multiples of time T and last for T rounds. Moreover, suppose that during each interval of time T each user has an independently and uniformly randomly generated priority which is either ``high" or ``low." The only characteristic of these priorities is that, all else equal, they would prefer run one extra high priority task at the expense of one fewer low priority task.
+Suppose that there are two users and that at each time each user has enough tasks to consume all of the clusters’ resources. Tasks arrive at multiples of time T and last for T rounds. Moreover, suppose that during each interval of time T each user has an independently and uniformly randomly generated priority which is either “high” or “low.” The only characteristic of these priorities is that, all else equal, they would prefer run one extra high priority task at the expense of one fewer low priority task.
 
-Since the scheduler is demand-based and the user's priority levels are changing across time, the allocation must be independent of the priority of the users. So if each user receives a non-zero share of the resources, then each user must receive a non-zero share of the resources while they are in the ``high" priority state and the other user is in the ``low" priority state. 
+Since the scheduler is demand-based and the user’s priority levels are changing across time, the allocation must be independent of the priority of the users. So if each user receives a non-zero share of the resources, then each user must receive a non-zero share of the resources while they are in the “high” priority state and the other user is in the “low” priority state. 
 
 But now consider the alternative allocation which exchanges these periods, i.e. assigns each user R resources more during their high priority period and R resources fewer during their low priority period. By definition, this alternative allocation is preferred to the real allocation, contradicting Pareto efficiency.
+\qed
+\end{pproof}
 
-Theorem 2. Under realistic conditions, the implementation of DRF in Mesos is not strategy-proof, Pareto efficient, envy-free, or compatible with the sharing incentive. DRF satisfies a weaker form of strategy-proofness, ``look-ahead strategy proofness," such that a user is incentivized to honestly state their demands given their beliefs about the effect of those demands on the scheduler's future behavior. 
+\begin{theorem}
+Under realistic conditions, the implementation of DRF in Mesos is not strategy-proof, Pareto efficient, envy-free, or compatible with the sharing incentive. 
+\end{theorem}
+
+DRF satisfies a weaker form of strategy-proofness which we call ``local strategy-proofness,'' 
+such that a user is incentivized to honestly state their demands given their beliefs about the effect of those demands on the scheduler’s future behavior. 
+This differs from the ordinary notion in that a user may need to reason strategically about future rounds of allocation in order to determine
+their demand, rather than honestly reporting their real demand.
+%XXX replace user by framework
+%XXX fold this into the clearer general discussion of loca guarantees
 
 Proof: For variety, we consider the case of inhomogeneous resources. Again, the proof is identical in any of the given cases. For each property we construct a special situation in which DRF fails to achieve that property.
 
-Strategy-proofness: consider the setting where a framework's top priority is achieving some particularly valuable resource X which is currently in use, though they have other tasks which they value less. To be most extreme, suppose the user values any outcome in which they receive X higher than any outcome in which they do not. A user can arrange to receive X by strategically passing up resource offers which they could use, in order to maximize their probability of being offered the resource X when it first becomes free. DRF is only ``strategy-proof" in the sense that a user who anticipates all future behavior of the scheduler will honestly state whether they want a resource in light of the consequences on the scheduler. 
-Pareto-efficiency: This is a corollary of the preceding theorem. In the case of inhomogeneous resources, suppose that two users have streams of tasks, some of which run faster on resources of type A and some of which run faster on resources of type B. Then no demand-based scheduler can ensure that tasks are always placed on the resources on which they run fastest.
-Envy-freeness and compatibility with sharing incentive: Suppose that one user consumes ⅓ of the resources in the cluster and another consumes ½ of the resources, but a particular 10% of the resources in the cluster are several times more valuable (to every user) than they appear. This could be based on hardware characteristics to which the scheduler is oblivious. The user who consumes ⅓ of the resources receives all resource offers first, and so claims all 10% of these resources. But this means that this user receives significantly more total value than the other user, violating both envy-freeness and the sharing incentive. 
+\begin{itemize}
+\item \textbf{Strategy-proofness:} consider the setting where a framework’s top priority is achieving some particularly valuable resource X 
+which is currently in use, though they have other tasks which they value less. To be most extreme, suppose the user values any outcome in which they receive X 
+higher than any outcome in which they do not. 
+A user can arrange to receive X by strategically passing up resource offers which they could use, in order to maximize 
+their probability of being offered the resource X when it first becomes free. 
+\item \textbf{Pareto-efficiency:} This is a corollary of theorem~\ref{demand-bad}. 
+In the case of inhomogeneous resources, suppose that two users have streams of tasks, some of which run faster on resources of type A and some of which run faster on resources of type B. 
+Then no demand-based scheduler can ensure that tasks are always placed on the resources on which they run fastest.
+\item \textbf{Envy-freeness and compatibility with sharing incentive:} Suppose that one user consumes $\frac 13$ of the resources in the cluster and another consumes $\frac 12$ of the resources, 
+but a particular $frac 1{10}$ of the resources in the cluster are $10$ times more valuable (to every user) than they appear. 
+This could be based on hardware characteristics to which the scheduler is oblivious. 
+The user who consumes $\frac 13$ of the resources receives all resource offers first, and so claims all of the especially valuable resources. 
+But this means that this user receives significantly more total value than the other user, violating both envy-freeness and the sharing incentive. 
+\end{itemize}
 
-Theorem 3. The sharing incentive and Pareto efficiency are incompatible for demand-based systems which deal with time-varying demands of varying importance.
+The results above hold only for demand-based policies.
+The following result shows that the strong guarantees of the sharing
+incentive and Pareto efficiency are actually incompatible in general.
+This motivates us to introduce weaker notions in the next section.
+\begin{theorem}\label{no-efficiency}
+%XXX change the appearance of "theorem 3" below to reference this one
+The sharing incentive and Pareto efficiency are incompatible under realistic conditions.
+\end{theorem}
+\begin{pproof}
+Consider a setting in which there are two phases and two users. 
+The second phase differs from the first in one of two ways: 
+either it is the case that user 2 cares more about their tasks in phase 2 than about their tasks in phase 1, 
+or it is the case that user 1 cares more about their tasks in phase 2 than about their tasks in phase 1. 
+By “cares more about” we mean simply that a user would, all else equal, 
+prefer to complete those tasks more rapidly at the expense of completing other tasks less rapidly.
 
-Proof: %XXX, Insert proof, it's super straightforward]
-\subsection{Virtues of economic scheduling}
+If user $i$ values jobs more in phase 2, it is easy to verify that any allocation which is both Pareto efficient and compatible with the sharing incentive must give user $i$ 
+more resources than user $j$ in phase 2 and (consequently) fewer resources than user $j$ in phase 1. 
+Since the scheduler must decide which user to give more resources in phase 1, it cannot possibly be Pareto efficient and compatible with the sharing incentive in both cases.
+\end{pproof}
+
+\subsection{Analysis of our policy}
 In this section, we show that our system possesses weaker versions of the theoretical guarantees of the theoretical properties that have been ascribed to existing schedulers. In light of the arguments in the preceding section, we hope to illustrate that the two systems are on comparable theoretical footings.
 
-The first theorem considers the setting in which user's willingness to pay [XXX continue]
+We define a user’s fair share of the cluster to be a proportional share of each resource, with the proportion determined by the ratio between the total amount paid by that user, and the amount paid by all users over the cluster. 
 
-Theorem 4. [Sharing incentive] Each user A values the total resources they receive at least as much as they value their share of the cluster (i.e. the amount paid by A divided by the entire cost paid by all users of the cluster).
+\begin{theorem}[Sharing incentive]
+Over the life of the cluster, each user A values the total resources they receive at least as much as they value their fair share of the cluster. 
+\end{theorem}
 
-Proof: Consider a particular user A. During any auction, let $p_A$ be the price that $A$ pays, 
-let $p_B$ be the price paid by all other users, let $R_A$ be the resources received by A, and let $R_B$ be the resources received by all other users. The key point is that user A values $R_A$ at at least $p_A$, and values $R_B$ at at most $p_B$. Thus user A values their share of the resources at at least $\frac {p_A}{p_A + p_B}$.
+Note that users may value resources at different times differently, and this is a statement across the entire lifetime of the cluster.
+\begin{pproof}
+Consider a particular user A. 
+During any auction, let $p_A$ be the price that A pays, let $p_{-A}$ be the price paid by all other users, let $R_A$ be the resources received by A, 
+and let $R_{-A}$ be the resources received by all other users. The key point is that user A values $R_A$ at at least $p_A$, and values $R_{-A}$ at at most $p_{-A}$. 
 
-%XXX finish proof, very easy.
+Summing over all rounds of the auction, A values the total resources they receive at at least the amount they pay for them, 
+and user A values the total resources others receive at at most the amount that others pay for them. The desired result follows immediately.
+\end{pproof}
 
-Theorem 5. Using a closed currency, if the rate of income of a particular user is p, that user can adopt a bidding strategy which ensures that they receive a p fraction of the cluster during any period of length T, where T is an upper bound for the length of a task (i.e. the maximum of the minimum amount of time after which any task can be revoked).
+We need to change the notion of envy-freeness slightly to be appropriate for our setting: 
+because we allow users to bid on resources, it may be that one user consistently pays more than another and therefore receives more resources. 
+So we merely ask that no user envy the allocation of anyone who paid no more than they did.
 
-Proof: 
+%XXX link this into the general discussion
+As with the envy-free analysis of DRF, we need to assume that either there are no complementarities between resources, or that the user’s demand for a resource takes into account their expectations about future allocations (e.g. if resources R and Q are only valuable together, we either assume that the scheduler packages them together into a single resource or that the frameworks are able to evaluate the value of r based on the probability that they will be able to receive Q).
+
+\begin{theorem}[Local envy-freeness]
+No user who bids honestly would prefer the allocation of another user who paid no more than they did.
+\end{theorem}
+
+\begin{pproof}
+We will show by induction that for any number of rounds, user A would prefer to have received user A’s allocation at user A’s price than user B’s allocation at user B’s price. Consider a particular round, after which user A receives some resources $R_A$ at a price $p_A$ and user B receives resources $R_B$ at a price $p_B$.
+
+By the definition of our auction, the price $p_B$ exceeds user A’s willingness to pay for resources $R_B$ (or else user A’s proxy would have continued bidding and the auction would not have concluded), while the price $p_A$ is less than user A’s willingness to pay for resources $R_A$ (or else user A’s proxy would have stopped bidding earlier). In particular, user A prefers their package to user B’s package. Since at the start of the round user A preferred their allocation at their price to user B’s allocation at user B’s price, this property also holds at the end of the round. In this step we rely on our assumption that user A’s valuations for their own holdings do not change after the auction is announced (otherwise it may be possible for user A to become envious in between rounds as more information is revealed, rather than during a round of the auction). We note in passing that similar assumptions are required to prove that DRF is envy-free in the dynamic setting. []
+\end{pproof}
+
+%XXX insert discussion of strategy-proofness of DRF, which mentions (1) the fact that you need to ignore complexities of items / trust users to incorporate them into their bids, (2) the fact that you need to ignore the consequences of your behavior for other participants
+
+\begin{theorem}[Local strategy-proofness] 
+Assuming that users are indifferent to changes in each others’ budgets,
+and that users’ willingness to pay 
+incorporates accurate expectations of effects on future allocations, 
+the optimal behavior in our auction is to honestly declare willingness to pay.
+\end{theorem}
+
+\begin{pproof}
+We give the standard argument for the dominant strategy truthfulness (strategy-proofness) of Vickrey auctions. 
+Indeed, suppose on the contrary 
+that $$B_1$$ and $B_2$ are two different bids for user A; that $R_1$ and $R_2$ are the resources received after making either of these bids and $p_1$, $p_2$ are the associated prices; that $B_1$ is an honest bid; and that user A prefers $(R_2, p_2)$ to $(R_1, p_1)$.
+
+The defining characteristic of our auction is that $p_i$ is equal to the loss in other participants’ welfare which results from awarding user A the resource bundle $R_i$. 
+WLOG suppose that $p_2> p_1$.
+This means that the auctioneer would need to reduce the prices charged to the other users by at most $(p_2 - p_1)$ in order to change user A’s bundle from $R_1$ to $R_2$. 
+But by hypothesis, user A would be willing to pay more than $(p_2 - p_1)$ in order to make this change. 
+Since $B_1$ was an honest bid, the auctioneer can raise A’s price by more than $(p_2 - p_1)$, 
+and since the auctioneer continues to make favorable modifications until no more are available, it will do so.
+
+This contradicts the assumption that $(R_1, p_1)$ was the result of running the auction with bid $B_1$. 
+\end{pproof}
+
+We must also weaken the notion of Pareto efficiency in order for it to be achievable (see Theorem 3)
+
+%XXX make notes about approximations, say we are analyzing the intractable optimization and that statements hold with appropriate caveats, e.g. you aren’t Pareto efficient if you can’t do the optimization exactly, but you are as Pareto efficient as you can realistically be. Since optimization is computationally hard, the only way we can avoid this caveat is by ignoring it.]
+%XXX make notes about the notion of ``local'' guarantees
+
+\begin{theorem}[Local Pareto efficiency.]
+If users bid honestly, 
+there is no way to change the tasks which are scheduled at a single time $T$ in a way which makes every user better off.
+\end{theorem}
+
+\begin{pproof}
+At each individual time $T$, the allocation selected is chosen precisely to maximize welfare using the stated preferences of bidders. 
+Consequently, assuming that bidders honestly report their welfare, the allocation which is selected maximizes welfare.
+\end{pproof}
 
 \begin{table*}[t!]
 \begin{center}
@@ -716,26 +882,26 @@ The simulations were run on synthetic workloads generated from the statistical d
 \subsection{Performance Without Pricing\\}
 
 \begin{figure}
-\includegraphics[width=0.5\textwidth]{images/util_high.png}
+%\includegraphics[width=0.5\textwidth]{images/util_high.png}
 \caption{Utilization achieved by DRF and our policy on a simulated 25-node CPU-bound cluster.  DRF's average utilization is 98\% average utilization while ours is 99\%.}
 \label{img:util_high}
 \end{figure}
 
 \begin{figure}
 
-\includegraphics[width=0.5\textwidth]{images/util_low.png}
+%\includegraphics[width=0.5\textwidth]{images/util_low.png}
 \caption{Behavior of DRF and our policy on a simulated 100-node cluster. Both policies have average utilization of 44\%.}
 \label{img:util_low}
 \end{figure}
 
 \begin{figure}
 
-\includegraphics[width=0.5\textwidth]{images/relative_completion_times.png}
+%\includegraphics[width=0.5\textwidth]{images/relative_completion_times.png}
 \caption{Relative average job completion times between DRF and auctions for all frameworks.}
 \label{img:relative}
 \end{figure}
 
-Currently, Mesos jobs and tasks are not attached to economic indicators, since DRF does not rely on any economic-based resource scheduler. Even if a market-based mechanism was used, many cluster jobs and tasks may not be able or willing to provide accurate pricing data. In the absence of this information, our scheme provides a default bidding policy. This ``backwards-compatible" mode must still perform comparable with DRF, especially given the current state of job requests.
+Currently, Mesos jobs and tasks are not attached to economic indicators, since DRF does not rely on any economic-based resource scheduler. Even if a market-based mechanism was used, many cluster jobs and tasks may not be able or willing to provide accurate pricing data. In the absence of this information, our scheme provides a default bidding policy. This ``backwards-compatible'' mode must still perform comparable with DRF, especially given the current state of job requests.
 
 To investigate this feature, we ran our simulator using both DRF and the market-based mechanism under the default bidding policy. We ran under two cluster environments, a 25-node cluster to simulate high resource contention, and a 100-node cluster to simulate a light workload. All nodes were homogeneous, with normalized CPU, RAM, and disk resources of 1. We ran using a statistical workload for five computing frameworks, each submitting 20 jobs in parallel. For each environment, we evaluated the resource utilization and job completion times of DRF and the market-based mechanism.
 
@@ -763,7 +929,7 @@ Hence, in the case of inhomogeneous performing resources, the market-based mecha
 
 
 \begin{figure}
-\includegraphics[width=0.5\textwidth]{images/inhomo_times.png}
+%\includegraphics[width=0.5\textwidth]{images/inhomo_times.png}
 \caption{The results of simulating Mesos on a cluster of 64 machines, of which 16 have access to a special resource. DRF schedules 30\% of tasks on the optimal machine when frameworks prioritize appropriately, while a simple market-based policy schedules 60\%.}
 \label{img:inhomo}
 \end{figure}

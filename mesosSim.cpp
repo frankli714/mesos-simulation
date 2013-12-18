@@ -182,7 +182,8 @@ void trace_workload(
     }
   }
 
-  allJobs.add(0); // Dummy job with 0 tasks so that real jobs begin at ID 1.
+  Job* job = &allJobs.add(0);
+  job->framework_id = -1; // Dummy job with 0 tasks so that real jobs begin at ID 1.
 
   unordered_map<size_t, double> framework_join_time;
 
@@ -244,6 +245,7 @@ void trace_workload(
       last_j_id = split_v[0];
       // Create a new job since we haven't seen this job yet.
       job = &allJobs.add(0);
+      job->framework_id = framework.id();
       CHECK_EQ(job->id(), last_j_id);
     } else {
       job = &allJobs.get(last_j_id);
@@ -353,6 +355,11 @@ void MesosSimulation::start_task(
     Task& task, double now, double rent) {
 
     output << this->get_clock() << " " << task.id()<< " StartTask" << endl; 
+
+    Job* job = &allJobs.get(task.job_id);
+    if (job->start_time < 0){
+        job->start_time = now;
+    }
 
     Slave& slave = allSlaves.get(slave_id);
     task.slave_id = slave_id;
@@ -496,6 +503,9 @@ void MesosSimulation::log_utilization() {
       << total_resources.cpus << " " << used_resources.mem << " "
       << total_resources.mem << " " << used_resources.disk << " "
       << total_resources.disk << endl;
+      for (auto &f : allFrameworks){
+          cout << "SHARE " << f.id() << " " << f.cpu_share  <<" "<<f.mem_share << endl;
+      }
       LOG(INFO) << "FASTHUNGRY " << gg;
       LOG(INFO) << "FASTSTABLE " << gb;
       LOG(INFO) << "SLOWSTABLE " << bb;
@@ -782,7 +792,7 @@ int main(int argc, char* argv[]) {
   //METRICS: Completion time
   cerr << "#JOB COMPLETION TIMES" << endl;
   for (int i = 0; i < sim.allJobs.size(); ++i) {
-    cerr << i << " " << sim.allJobs[i].end_time << endl;
+    cerr << i << " "<<  sim.allJobs[i].num_total_tasks << " " << sim.allJobs[i].framework_id << " " << sim.allJobs[i].end_time - sim.allJobs[i].start_time << endl;
   }
   //if(DEBUG) cout << "Average job completition time is " <<
   //float(sum)/float(jobs_to_tasks.size()) << endl;
