@@ -696,14 +696,14 @@ These policies can work well when the scheduler is aware of all of the relevant 
 
 In this section we prove some theorems that make this difficulty more concrete. Our results illustrate the general theme that the theoretical guarantees of fairness-based schedulers are highly brittle to realistic variations in the model. All of our results are straightforward consequences of well-understood limitations in mechanism design. We feel that these limitations are real and applicable to scheduling problems, and that they show fairly clearly that strong theoretical guarantees like strategy-proofness are not pragmatically desirable. This is in concordance with the dominance of mechanisms which are not strategy-proof in most complex environments. We stress that the results in this section are primarily intended to illustrate the limited applicability of the theoretical analysis of existing schedulers (and hence to excuse the lack of such analysis for our own system) rather than to directly demonstrate practical superiority.
 
-We will use the suggestive term “realistic conditions” to mean a situation in which any of the following occur (i.e., our negative results apply when any of these occur, and the setting is otherwise the simplest setting of static, homogeneous demands for homogeneous resources):
+We will use the suggestive term ``realistic conditions'' to mean a situation in which any of the following occur (i.e., our negative results apply when any of these occur, and the setting is otherwise the simplest setting of static, homogeneous demands for homogeneous resources):
 
 Users have time-varying demands and tasks of varying importance.
 Users can apply additional computational resources to speed up a task (e.g. via speculative execution)
 Users face deadlines.
 Different resources are inhomogeneous, and tasks have inhomogeneous sensitivity to characteristics of resources. Either the scheduler does not make decisions on the basis of these inhomogeneities, or different resources are imperfect substitutes.
 
-We say that a system is “demand-based” if it elicits a demand from each user and makes assignments on the basis of the stated demands. For example, DRF, asset allocation, and CEEI all fall into this class.
+We say that a system is ``demand-based'' if it elicits a demand from each user and makes assignments on the basis of the stated demands. For example, DRF, asset allocation, and CEEI all fall into this class.
 
 \begin{theorem}\label{demand-bad}
 Any demand-based system which is Pareto efficient under realistic conditions must sometimes assign the entire cluster to a single user, an extreme violation of fairness.
@@ -712,9 +712,9 @@ Any demand-based system which is Pareto efficient under realistic conditions mus
 \begin{pproof}
 We provide the proof for the time-varying demands case. The other arguments are exactly analogous. We give an extremely simple and artificial case, though analogous behavior would be expected in more realistic cases.
 
-Suppose that there are two users and that at each time each user has enough tasks to consume all of the clusters’ resources. Tasks arrive at multiples of time T and last for T rounds. Moreover, suppose that during each interval of time T each user has an independently and uniformly randomly generated priority which is either “high” or “low.” The only characteristic of these priorities is that, all else equal, they would prefer run one extra high priority task at the expense of one fewer low priority task.
+Suppose that there are two users and that at each time each user has enough tasks to consume all of the clusters' resources. Tasks arrive at multiples of time T and last for T rounds. Moreover, suppose that during each interval of time T each user has an independently and uniformly randomly generated priority which is either ``high'' or ``low.'' The only characteristic of these priorities is that, all else equal, they would prefer run one extra high priority task at the expense of one fewer low priority task.
 
-Since the scheduler is demand-based and the user’s priority levels are changing across time, the allocation must be independent of the priority of the users. So if each user receives a non-zero share of the resources, then each user must receive a non-zero share of the resources while they are in the “high” priority state and the other user is in the “low” priority state. 
+Since the scheduler is demand-based and the user's priority levels are changing across time, the allocation must be independent of the priority of the users. So if each user receives a non-zero share of the resources, then each user must receive a non-zero share of the resources while they are in the ``high'' priority state and the other user is in the ``low'' priority state. 
 
 But now consider the alternative allocation which exchanges these periods, i.e. assigns each user R resources more during their high priority period and R resources fewer during their low priority period. By definition, this alternative allocation is preferred to the real allocation, contradicting Pareto efficiency.
 \qed
@@ -725,7 +725,7 @@ Under realistic conditions, the implementation of DRF in Mesos is not strategy-p
 \end{theorem}
 
 DRF satisfies a weaker form of strategy-proofness which we call ``local strategy-proofness,'' 
-such that a user is incentivized to honestly state their demands given their beliefs about the effect of those demands on the scheduler’s future behavior. 
+such that a user is incentivized to honestly state their demands given their beliefs about the effect of those demands on the scheduler's future behavior. 
 This differs from the ordinary notion in that a user may need to reason strategically about future rounds of allocation in order to determine
 their demand, rather than honestly reporting their real demand.
 %XXX replace user by framework
@@ -734,7 +734,7 @@ their demand, rather than honestly reporting their real demand.
 Proof: For variety, we consider the case of inhomogeneous resources. Again, the proof is identical in any of the given cases. For each property we construct a special situation in which DRF fails to achieve that property.
 
 \begin{itemize}
-\item \textbf{Strategy-proofness:} consider the setting where a framework’s top priority is achieving some particularly valuable resource X 
+\item \textbf{Strategy-proofness:} consider the setting where a framework's top priority is achieving some particularly valuable resource X 
 which is currently in use, though they have other tasks which they value less. To be most extreme, suppose the user values any outcome in which they receive X 
 higher than any outcome in which they do not. 
 A user can arrange to receive X by strategically passing up resource offers which they could use, in order to maximize 
@@ -762,7 +762,7 @@ Consider a setting in which there are two phases and two users.
 The second phase differs from the first in one of two ways: 
 either it is the case that user 2 cares more about their tasks in phase 2 than about their tasks in phase 1, 
 or it is the case that user 1 cares more about their tasks in phase 2 than about their tasks in phase 1. 
-By “cares more about” we mean simply that a user would, all else equal, 
+By ``cares more about'' we mean simply that a user would, all else equal, 
 prefer to complete those tasks more rapidly at the expense of completing other tasks less rapidly.
 
 If user $i$ values jobs more in phase 2, it is easy to verify that any allocation which is both Pareto efficient and compatible with the sharing incentive must give user $i$ 
@@ -773,7 +773,7 @@ Since the scheduler must decide which user to give more resources in phase 1, it
 \subsection{Analysis of our policy}
 In this section, we show that our system possesses weaker versions of the theoretical guarantees of the theoretical properties that have been ascribed to existing schedulers. In light of the arguments in the preceding section, we hope to illustrate that the two systems are on comparable theoretical footings.
 
-We define a user’s fair share of the cluster to be a proportional share of each resource, with the proportion determined by the ratio between the total amount paid by that user, and the amount paid by all users over the cluster. 
+We define a user's fair share of the cluster to be a proportional share of each resource, with the proportion determined by the ratio between the total amount paid by that user, and the amount paid by all users over the cluster. 
 
 \begin{theorem}[Sharing incentive]
 Over the life of the cluster, each user A values the total resources they receive at least as much as they value their fair share of the cluster. 
@@ -794,23 +794,23 @@ because we allow users to bid on resources, it may be that one user consistently
 So we merely ask that no user envy the allocation of anyone who paid no more than they did.
 
 %XXX link this into the general discussion
-As with the envy-free analysis of DRF, we need to assume that either there are no complementarities between resources, or that the user’s demand for a resource takes into account their expectations about future allocations (e.g. if resources R and Q are only valuable together, we either assume that the scheduler packages them together into a single resource or that the frameworks are able to evaluate the value of r based on the probability that they will be able to receive Q).
+As with the envy-free analysis of DRF, we need to assume that either there are no complementarities between resources, or that the user's demand for a resource takes into account their expectations about future allocations (e.g. if resources R and Q are only valuable together, we either assume that the scheduler packages them together into a single resource or that the frameworks are able to evaluate the value of r based on the probability that they will be able to receive Q).
 
 \begin{theorem}[Local envy-freeness]
 No user who bids honestly would prefer the allocation of another user who paid no more than they did.
 \end{theorem}
 
 \begin{pproof}
-We will show by induction that for any number of rounds, user A would prefer to have received user A’s allocation at user A’s price than user B’s allocation at user B’s price. Consider a particular round, after which user A receives some resources $R_A$ at a price $p_A$ and user B receives resources $R_B$ at a price $p_B$.
+We will show by induction that for any number of rounds, user A would prefer to have received user A's allocation at user A's price than user B's allocation at user B's price. Consider a particular round, after which user A receives some resources $R_A$ at a price $p_A$ and user B receives resources $R_B$ at a price $p_B$.
 
-By the definition of our auction, the price $p_B$ exceeds user A’s willingness to pay for resources $R_B$ (or else user A’s proxy would have continued bidding and the auction would not have concluded), while the price $p_A$ is less than user A’s willingness to pay for resources $R_A$ (or else user A’s proxy would have stopped bidding earlier). In particular, user A prefers their package to user B’s package. Since at the start of the round user A preferred their allocation at their price to user B’s allocation at user B’s price, this property also holds at the end of the round. In this step we rely on our assumption that user A’s valuations for their own holdings do not change after the auction is announced (otherwise it may be possible for user A to become envious in between rounds as more information is revealed, rather than during a round of the auction). We note in passing that similar assumptions are required to prove that DRF is envy-free in the dynamic setting. []
+By the definition of our auction, the price $p_B$ exceeds user A's willingness to pay for resources $R_B$ (or else user A's proxy would have continued bidding and the auction would not have concluded), while the price $p_A$ is less than user A's willingness to pay for resources $R_A$ (or else user A's proxy would have stopped bidding earlier). In particular, user A prefers their package to user B's package. Since at the start of the round user A preferred their allocation at their price to user B's allocation at user B's price, this property also holds at the end of the round. In this step we rely on our assumption that user A's valuations for their own holdings do not change after the auction is announced (otherwise it may be possible for user A to become envious in between rounds as more information is revealed, rather than during a round of the auction). We note in passing that similar assumptions are required to prove that DRF is envy-free in the dynamic setting. []
 \end{pproof}
 
 %XXX insert discussion of strategy-proofness of DRF, which mentions (1) the fact that you need to ignore complexities of items / trust users to incorporate them into their bids, (2) the fact that you need to ignore the consequences of your behavior for other participants
 
 \begin{theorem}[Local strategy-proofness] 
-Assuming that users are indifferent to changes in each others’ budgets,
-and that users’ willingness to pay 
+Assuming that users are indifferent to changes in each others' budgets,
+and that users' willingness to pay 
 incorporates accurate expectations of effects on future allocations, 
 the optimal behavior in our auction is to honestly declare willingness to pay.
 \end{theorem}
@@ -820,11 +820,11 @@ We give the standard argument for the dominant strategy truthfulness (strategy-p
 Indeed, suppose on the contrary 
 that $$B_1$$ and $B_2$ are two different bids for user A; that $R_1$ and $R_2$ are the resources received after making either of these bids and $p_1$, $p_2$ are the associated prices; that $B_1$ is an honest bid; and that user A prefers $(R_2, p_2)$ to $(R_1, p_1)$.
 
-The defining characteristic of our auction is that $p_i$ is equal to the loss in other participants’ welfare which results from awarding user A the resource bundle $R_i$. 
+The defining characteristic of our auction is that $p_i$ is equal to the loss in other participants' welfare which results from awarding user A the resource bundle $R_i$. 
 WLOG suppose that $p_2> p_1$.
-This means that the auctioneer would need to reduce the prices charged to the other users by at most $(p_2 - p_1)$ in order to change user A’s bundle from $R_1$ to $R_2$. 
+This means that the auctioneer would need to reduce the prices charged to the other users by at most $(p_2 - p_1)$ in order to change user A's bundle from $R_1$ to $R_2$. 
 But by hypothesis, user A would be willing to pay more than $(p_2 - p_1)$ in order to make this change. 
-Since $B_1$ was an honest bid, the auctioneer can raise A’s price by more than $(p_2 - p_1)$, 
+Since $B_1$ was an honest bid, the auctioneer can raise A's price by more than $(p_2 - p_1)$, 
 and since the auctioneer continues to make favorable modifications until no more are available, it will do so.
 
 This contradicts the assumption that $(R_1, p_1)$ was the result of running the auction with bid $B_1$. 
@@ -832,7 +832,7 @@ This contradicts the assumption that $(R_1, p_1)$ was the result of running the 
 
 We must also weaken the notion of Pareto efficiency in order for it to be achievable (see Theorem 3)
 
-%XXX make notes about approximations, say we are analyzing the intractable optimization and that statements hold with appropriate caveats, e.g. you aren’t Pareto efficient if you can’t do the optimization exactly, but you are as Pareto efficient as you can realistically be. Since optimization is computationally hard, the only way we can avoid this caveat is by ignoring it.]
+%XXX make notes about approximations, say we are analyzing the intractable optimization and that statements hold with appropriate caveats, e.g. you aren't Pareto efficient if you can't do the optimization exactly, but you are as Pareto efficient as you can realistically be. Since optimization is computationally hard, the only way we can avoid this caveat is by ignoring it.]
 %XXX make notes about the notion of ``local'' guarantees
 
 \begin{theorem}[Local Pareto efficiency.]
@@ -849,15 +849,13 @@ Consequently, assuming that bidders honestly report their welfare, the allocatio
 \begin{center}
     \begin{tabular}{| l | l | l | l | l | l |}
     \hline
-    Desired & \small DRF & \small DRF & \small Market-based  & something & something\\
-    Properties & \small(simple) & \small (complex) & \small Mechanism  & something & something\\
+    Desired & \small DRF & \small DRF & \small Market-based  \\
+    Properties & \small(simple) & \small (realistic) & \small Mechanism \\
     \hline
-    \small Envy-Freeness & \cmark & \cmark  & \cmark & \cmark   & \cmark\\
-    \small Pareto-Efficiency & 5 & 6  & 4  & \cmark  & \cmark\\
-    \small Resource Monotonicity & 8 & 9  & 4  & \cmark  & \cmark \\
-    7 & 8 & 9  & 4  & \cmark  & \cmark \\
-    7 & 8 & 9  & 4  & \cmark  & \cmark\\
-    7 & 8 & 9  & 4 & \cmark  & \cmark\\
+    \small Envy-Free & \cmark &  & \cmark \\
+    \small Pareto-Efficient & \cmark & Locally & Locally  \\
+    \small Strategy-proof & \cmark & Locally  & Locally \\
+    \small Sharing incentive & \cmark &  & \cmark\\
     \hline
     \end{tabular}
 \end{center}
