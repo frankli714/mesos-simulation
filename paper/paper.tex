@@ -305,7 +305,9 @@ frameworks are most willing to pay.
 \subsection{Motivating examples}\label{examples}
 
 Consider the following typical situations within a cluster:
+\vspace{-5mm}
 \begin{enumerate}
+\itemsep0em
   \item Some clients have regular throughput and flexible deadlines, while some
     clients have hard real-time constraints and variable traffic.
   \item Different tasks make use of different characteristics of hardware on
@@ -316,7 +318,7 @@ Consider the following typical situations within a cluster:
     in the cluster, and co-locating the tasks with the data improves
     performance.
 \end{enumerate}
-
+\vspace{-5mm}
 In section~\ref{drawbacks} we show that current implementations
 of Mesos do not remain efficient, strategy-proof, envy-free,
 or compatible with the sharing incentive under these conditions.
@@ -597,13 +599,16 @@ A naive representation of this function would use an exponential amount of
 space. While we can consider several methods greatly varying in
 complexity for encoding this function more compactly, we use the following
 two-level representation:
+\vspace{-5mm}
 \begin{itemize}
+\itemsep0em
   \item A list of \emph{tasks}, with the assumption that a framework's
     willingness to pay for any set of tasks is simply the total
     willingness to pay for tasks in that set.
   \item For each task a list of possible resources which can be used to perform
     that task, together with a willingness to pay for that set of resources.
 \end{itemize}
+\vspace{-5mm}
 While this obviously cannot represent all possible $\mathcal{B}$, it still
 allows enough flexibility to cover all of the applications we allude to
 in the paper---to handle deadlines, inhomogeneous resources, fragmentation,
@@ -743,14 +748,15 @@ These policies can work well when the scheduler is aware of all of the relevant 
 In this section we prove some theorems that make this difficulty more concrete. Our results illustrate the general theme that the theoretical guarantees of fairness-based schedulers are highly brittle to realistic variations in the model. All of our results are straightforward consequences of well-understood limitations in mechanism design. We feel that these limitations are real and applicable to scheduling problems, and that they show fairly clearly that strong theoretical guarantees like strategy-proofness are not pragmatically desirable. This is in concordance with the dominance of mechanisms which are not strategy-proof in most complex environments. We stress that the results in this section are primarily intended to illustrate the limited applicability of the theoretical analysis of existing schedulers (and hence to excuse the lack of such analysis for our own system) rather than to directly demonstrate practical superiority.
 
 We will use the suggestive term ``realistic conditions'' to mean a situation in which any of the following occur (i.e., our negative results apply when any of these occur, and the setting is otherwise the simplest setting of static, homogeneous demands for homogeneous resources):
-
+\vspace{-5mm}
 \begin{itemize}
+\itemsep0em
 \item Users have time-varying demands and tasks of varying importance.
 \item Users can apply additional computational resources to speed up a task (e.g. via speculative execution)
 \item Users face deadlines.
 \item Different resources are inhomogeneous, and tasks have inhomogeneous sensitivity to characteristics of resources. Either the scheduler does not make decisions on the basis of these inhomogeneities, or different resources are imperfect substitutes.
 \end{itemize}
-
+\vspace{-5mm}
 We say that a system is ``demand-based'' if it elicits a demand from each user and makes assignments on the basis of the stated demands. For example, DRF, asset allocation, and CEEI all fall into this class.
 \vspace{-5mm}
 \begin{theorem}\label{demand-bad}
@@ -1010,7 +1016,7 @@ We simulate this scenario using a 64-node cluster, where 16 nodes have the speci
 
 Figure \ref{img:inhomo} depicts the time progression of job completions, where a job is considered finished when all of its tasks are finished. As the figure depicts, the market-based mechanism is consistently ahead of DRF at all times, and finishes all jobs in about 20\% less time than DRF. Looking in detail, we find that DRF schedules only 30\% of ``fast" tasks on special resource slaves, while the market-based mechanism schedules 60\%. One might note that around the eighth hour, it appears DRF catches up to the market-based mechanism before falling behind again. This effect is caused by a long running job that the market-based mechanism schedules earlier than DRF. Its completion progresses the fraction of job completion minimally yet accounts for a long period of time. This allows DRF, which is still completing earlier short-lived tasks, to momentarily catch up in the fraction of job completion. When DRF schedules the same long-lived job at a latter point, it once again lags behind the market-based mechanism.
 
-Hence, in the case of inhomogeneous performing resources, the market-based mechanism can allow frameworks to better express their preferences than DRF, resulting in better performance for the market-based mechanism. DRF only allows a framework to specifically target special resource slaves when the framework is offered, whereas the market-based mechanism allows frameworks who benefit most from a special resource slave to outbid others. By better scheduling jobs on machines that best complete them, we see the overall performance improvements of the market-based mechanism.
+Hence, in the case of inhomogeneous performing resources, the market-based mechanism can allow frameworks to better express their preferences for special resources than DRF, resulting in better performance for the market-based mechanism. DRF only allows a framework to specifically target special resource slaves when the framework is offered, whereas the market-based mechanism allows frameworks who benefit most from a special resource slave to outbid others.
 
 
 \begin{figure}
