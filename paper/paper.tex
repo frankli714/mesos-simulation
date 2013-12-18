@@ -564,27 +564,27 @@ Periodically, when there are resources currently available, the master will
 send a \emph{resource offer} message to all registered frameworks to invite them
 to participate in an upcoming auction. Each framework then submits a package of
 bids, which we can consider a function of the form
-\[ \mathcal{B}: \mathbf{T}^n \rightarrow \mathbf{R}. \]
-where there are $n$ slaves, $\mathbf{T}$ is a task (containing an amount of desired
-resources on a single slave) and $\mathbf{R}$ is the willingness to pay for the
-list of tasks $\mathbf{T}^n$.
+\[ \mathcal{B}: \Pi_{i=1}^n R_i \rightarrow \mathbf{R}. \]
+where $n$ is the number of slaves, 
+$R_i$ is the space of possible resource assignments on slave $i$,
+and the value $\mathcal{B}\left(R_1, R_2, \ldots, R_n\right)$ is the framework's
+willingness to pay in order to receive resources $R_i$ on slave $i$ for each $i$.
 
 A naive representation of this function would use an exponential amount of
-space, given that each of the $n$ values in $\mathbf{T}^n$ can vary
-independently. While we can consider several methods greatly varying in
+space. While we can consider several methods greatly varying in
 complexity for encoding this function more compactly, we use the following
 two-level representation:
 \begin{itemize}
-  \item A list of \emph{task packages}, with the assumption that the willingness
-    to pay for any subset of the list is simply the sum of the willingness to
-    pay for each element in the subset
-  \item A list of tasks in each task package, with a specific slave and a
-    willingness to pay for each task. The auction assumes that the framework
-    desires only one of the tasks and values all of them equally.
+  \item A list of \emph{tasks}, with the assumption that a framework's
+    willingness to pay for any set of tasks is simply the total
+    willingness to pay for tasks in that set.
+  \item For each task a list of possible resources which can be used to perform
+    that task, together with a willingness to pay for that set of resources.
 \end{itemize}
 While this obviously cannot represent all possible $\mathcal{B}$, it still
-allows enough flexibility to, e.g., pay more to have a task run on a faster
-machine than a slower one.
+allows enough flexibility to cover all of the applications we allude to
+in the paper---to handle dealdines, inhomogeneous resources, fragmentation,
+tasks of differing priorities, and so on.
 
 \subsection{Ascending-bid clock auction}
 Once the master has collected a set of bids, it uses an ascending-bid clock
@@ -642,7 +642,7 @@ maintain roughly equal budgets (and hence use roughly equal shares
 of the cluster), since any framework which became richer
 than the others would begin winning auctions.
 
-\paragraph{Paying more or less} To modify the 
+\paragraph{Adjusting bids} To modify the 
 default policy to accomodate inhomogeneous resources,
 times, or tasks, we can simply modify framework's
 bids to adjust for the desirability of the resource being
